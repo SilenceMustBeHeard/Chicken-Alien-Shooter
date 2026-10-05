@@ -1454,7 +1454,7 @@ export function ChickenAlienGame() {
           addScreenShake(4)
 
           if (proj.explosive) {
-            createParticles(proj.x, proj.y, proj.color)
+          createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
             playSound(150, 0.2, "sawtooth")
             addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
           }
@@ -1512,7 +1512,7 @@ export function ChickenAlienGame() {
           enemy.hitFlash = 5
 
           eggSplashSound()
-          createParticles(enemy.x, enemy.y, proj.color)
+        createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
           addFloatingText(enemy.x, enemy.y - 20, `-${damage}`, "#ff9999", 16)
 
           if (!proj.piercing) {
@@ -1555,7 +1555,7 @@ export function ChickenAlienGame() {
         })
 
         if (proj.explosive) {
-          createParticles(proj.x, proj.y, proj.color)
+        createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
           playSound(150, 0.2, "sawtooth")
           addScreenShake(6)
           addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
@@ -1678,17 +1678,18 @@ export function ChickenAlienGame() {
     })
     ctx.globalAlpha = 1
 
-    powerUpsRef.current.forEach((powerUp) => {
-      const colors = {
-        doubleYolk: "#ffff00",
-        scrambled: "#ffaa00",
-        hardBoiled: "#8b4513",
-        explosive: "#ff3300",
-        golden: "#ffd700",
-        shield: "#00ffff",
-        health: "#00ff00",
-        speedBoost: "#ff00ff",
-      }
+  powerUpsRef.current.forEach((powerUp) => {
+  const colors = {
+    doubleYolk: "#ffff00",
+    scrambled: "#ffaa00",
+    hardBoiled: "#8b4513",
+    explosive: "#ff3300",
+    golden: "#ffd700",
+    shield: "#00ffff",
+    health: "#00ff00",
+    speedBoost: "#ff00ff",
+    charge: "#f32206", 
+  }
 
       const pulse = 1 + Math.sin(Date.now() / 200) * 0.15
 
@@ -1727,6 +1728,7 @@ export function ChickenAlienGame() {
         shield: "S",
         health: "+",
         speedBoost: "F",
+          charge: "Q",
       }
       if (icons[powerUp.type]) {
         ctx.fillText(icons[powerUp.type], powerUp.x, powerUp.y)
@@ -2328,6 +2330,8 @@ export function ChickenAlienGame() {
         hardBoiled: "#8b4513",
         explosive: "#ff3300",
         golden: "#ffd700",
+        charge: "#ff4400",
+        
       }
 
       const color = weaponColors[player.weaponType as keyof typeof weaponColors] || "#fff"
