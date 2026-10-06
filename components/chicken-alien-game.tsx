@@ -132,6 +132,7 @@ export function ChickenAlienGame() {
   const [finalKillCount, setFinalKillCount] = useState(0)
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [finalWave, setFinalWave] = useState(0)
 
   // Touch controls state
   const [joystickActive, setJoystickActive] = useState(false)
@@ -1217,6 +1218,8 @@ export function ChickenAlienGame() {
                 gameStateRef.current = "gameOver"
                 setGameState("gameOver")
                 setFinalScore(scoreRef.current)
+                setFinalKillCount(killCountRef.current)  
+                setFinalWave(waveRef.current)            
               }
             }
           }
@@ -1362,6 +1365,8 @@ export function ChickenAlienGame() {
               gameStateRef.current = "gameOver"
               setGameState("gameOver")
               setFinalScore(scoreRef.current)
+              setFinalKillCount(killCountRef.current)  
+             setFinalWave(waveRef.current)            
             }
           }
           createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
@@ -1422,6 +1427,7 @@ export function ChickenAlienGame() {
       setFinalKillCount(killCountRef.current)
       setGameState("gameOver")
       gameStateRef.current = "gameOver"
+      setFinalWave(waveRef.current)
     }
 
     // Update projectiles and check enemy collision
@@ -2534,7 +2540,7 @@ export function ChickenAlienGame() {
                 :{(Math.floor(finalScore / 60) % 60).toString().padStart(2, "0")}
               </p>
               <p className="text-2xl text-green-400">Total Kills: {finalKillCount}</p>
-              <p className="text-xl text-gray-400">Waves Survived: {waveRef.current}</p>
+              <p className="text-xl text-gray-400">Waves Survived: {finalWave}</p>
             </div>
             <button
               onClick={restartGame}
