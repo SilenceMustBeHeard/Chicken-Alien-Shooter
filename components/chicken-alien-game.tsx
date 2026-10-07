@@ -126,9 +126,9 @@ type GameState = "menu" | "playing" | "gameOver"
 export function ChickenAlienGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [gameState, setGameState] = useState<GameState>("menu")
-  const [score, setScore] = useState(0)
+  const [_score, setScore] = useState(0)
   const [finalScore, setFinalScore] = useState(0)
-  const [killCount, setKillCount] = useState(0)
+  const [_killCount, setKillCount] = useState(0)
   const [finalKillCount, setFinalKillCount] = useState(0)
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -201,7 +201,8 @@ export function ChickenAlienGame() {
   // Initialize audio context
   const initAudio = () => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+     audioContextRef.current = new (window.AudioContext 
+      || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
     }
   }
 
@@ -358,29 +359,29 @@ export function ChickenAlienGame() {
 
   const powerUpSound = () => playSound(800, 0.2, "sine")
 
-  // Dummy function for hitSound to resolve linting error
-  const hitSound = () => {
-    if (!soundEnabled || !audioContextRef.current) return
-    try {
-      const ctx = audioContextRef.current
-      const oscillator = ctx.createOscillator()
-      const gainNode = ctx.createGain()
+  // // Dummy function for hitSound to resolve linting error
+  // const hitSound = () => {
+  //   if (!soundEnabled || !audioContextRef.current) return
+  //   try {
+  //     const ctx = audioContextRef.current
+  //     const oscillator = ctx.createOscillator()
+  //     const gainNode = ctx.createGain()
 
-      oscillator.connect(gainNode)
-      gainNode.connect(ctx.destination)
+  //     oscillator.connect(gainNode)
+  //     gainNode.connect(ctx.destination)
 
-      oscillator.type = "sine"
-      oscillator.frequency.setValueAtTime(440, ctx.currentTime) // A4 note
+  //     oscillator.type = "sine"
+  //     oscillator.frequency.setValueAtTime(440, ctx.currentTime) // A4 note
 
-      gainNode.gain.setValueAtTime(0.1, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1)
+  //     gainNode.gain.setValueAtTime(0.1, ctx.currentTime)
+  //     gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1)
 
-      oscillator.start(ctx.currentTime)
-      oscillator.stop(ctx.currentTime + 0.1)
-    } catch (e) {
-      console.log("[v0] Audio error:", e)
-    }
-  }
+  //     oscillator.start(ctx.currentTime)
+  //     oscillator.stop(ctx.currentTime + 0.1)
+  //   } catch (e) {
+  //     console.log("[v0] Audio error:", e)
+  //   }
+  // }
 
   // New sound effect for charge ability
   const chargeSound = () => {
@@ -2379,26 +2380,27 @@ export function ChickenAlienGame() {
 
     ctx.restore()
   }
+// Game loop
+type GameLoopFn = ((currentTime: number) => void) & { lastTime?: number }
 
-  // Game loop
-  const gameLoop = (currentTime: number) => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext("2d")
-    if (!canvas || !ctx) return
+const gameLoop: GameLoopFn = (currentTime: number) => {
+  const canvas = canvasRef.current
+  const ctx = canvas?.getContext("2d")
+  if (!canvas || !ctx) return
 
-    if (gameStateRef.current === "playing") {
-      // Calculate deltaTime dynamically for smoother updates
-      const rawDeltaTime = currentTime - (gameLoop as any).lastTime || 16
-      // Cap catch-up work after a tab switch or a stalled frame so aliens cannot
-      // jump through the chicken and trigger a burst of collision effects.
-      const deltaTime = Math.min(Math.max(rawDeltaTime, 1), 34)
-      update(canvas, deltaTime)
-      draw(ctx, canvas)
-      ;(gameLoop as any).lastTime = currentTime
-    }
-
-    animationIdRef.current = requestAnimationFrame(gameLoop)
+  if (gameStateRef.current === "playing") {
+    // Calculate deltaTime dynamically for smoother updates
+    const rawDeltaTime = currentTime - (gameLoop.lastTime ?? 0) || 16
+    // Cap catch-up work after a tab switch or a stalled frame so aliens cannot
+    // jump through the chicken and trigger a burst of collision effects.
+    const deltaTime = Math.min(Math.max(rawDeltaTime, 1), 34)
+    update(canvas, deltaTime)
+    draw(ctx, canvas)
+    gameLoop.lastTime = currentTime
   }
+
+  animationIdRef.current = requestAnimationFrame(gameLoop)
+}
 
   // Event listeners
   useEffect(() => {
