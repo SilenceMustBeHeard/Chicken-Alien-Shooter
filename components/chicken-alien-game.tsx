@@ -1491,7 +1491,7 @@ export function ChickenAlienGame() {
       }
 
       // Check projectile hits on enemies
-      let hitEnemy = false
+     
       const enemiesToDamage: Enemy[] = []
 
       for (let i = 0; i < enemiesRef.current.length; i++) {
@@ -1506,7 +1506,7 @@ export function ChickenAlienGame() {
           }
         } else if (dist < proj.radius + enemy.radius) {
           enemiesToDamage.push(enemy)
-          hitEnemy = true
+         
           break
         }
       }
@@ -2491,13 +2491,13 @@ const gameLoop: GameLoopFn = (currentTime: number) => {
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onTouchMove={handleTouchMove} // Added this handler
-        onTouchStart={(e) => {
+        onTouchStart={() => {
           // Handle touch start for canvas elements if needed, e.g., for shoot button
           if (gameState === "playing") {
             setShootButtonPressed(true)
           }
         }}
-        onTouchEnd={(e) => {
+        onTouchEnd={() => {
           // Handle touch end for canvas elements if needed
           if (gameState === "playing") {
             setShootButtonPressed(false)
