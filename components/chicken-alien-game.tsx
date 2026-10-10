@@ -165,18 +165,104 @@ export function ChickenAlienGame() {
   const gameTimeRef = useRef(0)
   const animationIdRef = useRef<number | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
-
+  // Effect 1: Detect mobile
   useEffect(() => {
     setIsMobile("ontouchstart" in window)
   }, [])
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Effect 2: Resize canvas to fill container (with max size + centering)
+  useEffect(() => {
+    
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const resizeCanvas = () => {
+      const parent = canvas.parentElement
+      if (!parent) return
+      const rect = parent.getBoundingClientRect()
+
+      // Cap at 1200x800 for gameplay balance
+      const maxW = 1200
+      const maxH = 800
+      const aspect = maxW / maxH
+
+      let w = rect.width
+      let h = rect.height
+
+      // Fit within aspect ratio
+      if (w / h > aspect) {
+        w = h * aspect
+      } else {
+        h = w / aspect
+      }
+
+      canvas.width = Math.floor(w)
+      canvas.height = Math.floor(h)
+      canvas.style.width = `${w}px`
+      canvas.style.height = `${h}px`
+      canvas.style.position = "absolute"
+      canvas.style.left = `${(rect.width - w) / 2}px`
+      canvas.style.top = `${(rect.height - h) / 2}px`
+
+      // Keep player inside new bounds
+      const player = playerRef.current
+      if (player) {
+        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
+        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
+      }
+    }
+
+    resizeCanvas()
+    window.addEventListener("resize", resizeCanvas)
+    return () => window.removeEventListener("resize", resizeCanvas)
+  }, [])
+
+  // Effect 3: Keyboard listeners
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysRef.current.add(e.key.toLowerCase())
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysRef.current.delete(e.key.toLowerCase())
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current)
+      }
+    }
+  }, [])
+
+const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+  if (!joystickActive && gameState === "playing") {
+    e.preventDefault()
+    const touch = e.touches[0]
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
-    mouseRef.current.x = e.clientX - rect.left
-    mouseRef.current.y = e.clientY - rect.top
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    mouseRef.current.x = (touch.clientX - rect.left) * scaleX
+    mouseRef.current.y = (touch.clientY - rect.top) * scaleY
   }
+}
+const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const canvas = canvasRef.current
+  if (!canvas) return
+  const rect = canvas.getBoundingClientRect()
+  const scaleX = canvas.width / rect.width
+  const scaleY = canvas.height / rect.height
+  mouseRef.current.x = (e.clientX - rect.left) * scaleX
+  mouseRef.current.y = (e.clientY - rect.top) * scaleY
+}
+
+
 
   const handleMouseDown = () => {
     mouseRef.current.down = true
@@ -186,17 +272,6 @@ export function ChickenAlienGame() {
     mouseRef.current.down = false
   }
 
-  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    if (!joystickActive && gameState === "playing") {
-      e.preventDefault()
-      const touch = e.touches[0]
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const rect = canvas.getBoundingClientRect()
-      mouseRef.current.x = touch.clientX - rect.left
-      mouseRef.current.y = touch.clientY - rect.top
-    }
-  }
 
   // Initialize audio context
   const initAudio = () => {
@@ -2480,30 +2555,25 @@ const gameLoop: GameLoopFn = (currentTime: number) => {
   // Moved the handleMouseMove, handleMouseDown, handleMouseUp, and handleTouchMove functions inside the useEffect hook
 
   return (
-    // Improved start screen
     <div className="relative w-full h-screen bg-gradient-to-b from-slate-900 to-slate-950 flex items-center justify-center overflow-hidden">
-      <canvas
-        ref={canvasRef}
-        width={isMobile ? 350 : 800}
-        height={isMobile ? 500 : 600}
-        className="border-2 border-slate-700 rounded-lg shadow-2xl max-w-full max-h-full"
-        onMouseMove={handleMouseMove}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onTouchMove={handleTouchMove} // Added this handler
-        onTouchStart={() => {
-          // Handle touch start for canvas elements if needed, e.g., for shoot button
-          if (gameState === "playing") {
-            setShootButtonPressed(true)
-          }
-        }}
-        onTouchEnd={() => {
-          // Handle touch end for canvas elements if needed
-          if (gameState === "playing") {
-            setShootButtonPressed(false)
-          }
-        }}
-      />
+  <canvas
+  ref={canvasRef}
+  className="border-2 border-slate-700 rounded-lg shadow-2xl"
+  onMouseMove={handleMouseMove}
+  onMouseDown={handleMouseDown}
+  onMouseUp={handleMouseUp}
+  onTouchMove={handleTouchMove}
+  onTouchStart={() => {
+    if (gameState === "playing") {
+      setShootButtonPressed(true)
+    }
+  }}
+  onTouchEnd={() => {
+    if (gameState === "playing") {
+      setShootButtonPressed(false)
+    }
+  }}
+/>
 
       {/* Start Menu */}
       {gameState === "menu" && (
