@@ -2244,8 +2244,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       })()
 
       ctx.scale(pulseScale, pulseScale)
-
-      // Draw power-up shape
+ // Draw power-up shape
       if (powerUp.type === "shield") {
         // Shield icon
         ctx.fillStyle = "#00ffff"
@@ -2306,56 +2305,14 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
       ctx.restore()
     })
-
     // Draw UI
     ctx.shadowBlur = 0
 
-    // Draw stun cooldown indicator
-    if (player.stunCooldown > 0) {
-      const stunCooldownPercent = player.stunCooldown / 10000
-      ctx.fillStyle = "rgba(255, 255, 0, 0.8)"
-      ctx.fillRect(canvas.width - 120, 10, 100, 20)
-      ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
-      ctx.fillRect(canvas.width - 120 + 100 * (1 - stunCooldownPercent), 10, 100 * stunCooldownPercent, 20)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText(`CACA-DOO: ${Math.ceil(player.stunCooldown / 1000)}s`, canvas.width - 70, 24)
-    } else {
-      ctx.fillStyle = "rgba(0, 255, 0, 0.8)"
-      ctx.fillRect(canvas.width - 120, 10, 100, 20)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText("CACA-DOO: READY", canvas.width - 70, 24)
-    }
-
-    // Draw charge cooldown indicator
-    if (player.chargeCooldown > 0) {
-      const chargeCooldownPercent = player.chargeCooldown / 15000
-      ctx.fillStyle = "rgba(255, 68, 0, 0.8)"
-      ctx.fillRect(canvas.width - 120, 40, 100, 20)
-      ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
-      ctx.fillRect(canvas.width - 120 + 100 * (1 - chargeCooldownPercent), 40, 100 * chargeCooldownPercent, 20)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText(`CHARGE: ${Math.ceil(player.chargeCooldown / 1000)}s`, canvas.width - 70, 54)
-    } else if (!player.isCharging) {
-      // Only show READY if not currently charging
-      ctx.fillStyle = "rgba(0, 255, 0, 0.8)"
-      ctx.fillRect(canvas.width - 120, 40, 100, 20)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText("CHARGE: READY", canvas.width - 70, 54)
-    }
-
-    // Health bar
+    // ─── TOP-LEFT: Health bar ───
     const healthBarGradient = ctx.createLinearGradient(10, 10, 210, 30)
     if (player.health > 30) {
-      healthBarGradient.addColorStop(0, "#00ff00")
-      healthBarGradient.addColorStop(1, "#00aa00")
+      healthBarGradient.addColorStop(0, "#246605")
+      healthBarGradient.addColorStop(1, "#246605")
     } else {
       healthBarGradient.addColorStop(0, "#ff0000")
       healthBarGradient.addColorStop(1, "#aa0000")
@@ -2366,37 +2323,19 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     ctx.fillStyle = healthBarGradient
     ctx.fillRect(12, 12, (player.health / player.maxHealth) * 196, 20)
 
-    // Health bar border
     ctx.strokeStyle = "#fff"
     ctx.lineWidth = 2
     ctx.strokeRect(10, 10, 200, 24)
 
-    // Health text
     ctx.fillStyle = "#fff"
     ctx.font = "bold 14px Arial"
     ctx.textAlign = "center"
     ctx.fillText(`${Math.ceil(player.health)}/${player.maxHealth}`, 110, 22)
 
-    // Score with shadow
-    ctx.shadowBlur = 3
-    ctx.shadowColor = "#000"
-    ctx.fillStyle = "#fff"
-    ctx.font = "bold 22px Arial"
-    ctx.textAlign = "right"
-    // Format time as MM:SS
-    const totalSeconds = Math.floor(scoreRef.current / 60)
-    const minutes = Math.floor(totalSeconds / 60)
-    const seconds = totalSeconds % 60
-    const timeString = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
-
-    ctx.fillText(`Time: ${timeString}`, canvas.width - 10, 25)
-    ctx.fillText(`Kills: ${killCountRef.current}`, canvas.width - 10, 50)
-    ctx.fillText(`Wave: ${waveRef.current}`, canvas.width - 10, 75)
-    ctx.shadowBlur = 0
-
+    // ─── TOP-LEFT (below health): Weapon timer ───
     ctx.textAlign = "left"
     ctx.font = "bold 15px Arial"
-    let yOffset = 44
+    let yOffset = 46
 
     if (player.weaponType !== "basic") {
       const weaponNames = {
@@ -2412,8 +2351,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         hardBoiled: "#8b4513",
         explosive: "#ff3300",
         golden: "#ffd700",
-        charge: "#ff4400",
-        
       }
 
       const color = weaponColors[player.weaponType as keyof typeof weaponColors] || "#fff"
@@ -2432,14 +2369,14 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       ctx.shadowColor = color
       ctx.fillText(`${weaponNames[player.weaponType as keyof typeof weaponNames]} (${timeLeft}s)`, 45, yOffset + 10)
       ctx.shadowBlur = 0
-      yOffset += 24
+      yOffset += 26
     }
 
+    // ─── TOP-LEFT (below weapon): Shield timer ───
     if (player.shield) {
       const timeLeft = Math.ceil(player.shieldTime / 1000)
       const timePercent = player.shieldTime / 10000
 
-      // Countdown ring
       ctx.strokeStyle = "#00ffff"
       ctx.lineWidth = 3
       ctx.beginPath()
@@ -2453,8 +2390,70 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       ctx.shadowBlur = 0
     }
 
+    // ─── TOP-RIGHT: Time / Kills / Wave ───
+    ctx.shadowBlur = 3
+    ctx.shadowColor = "#000"
+    ctx.fillStyle = "#fff"
+    ctx.font = "bold 20px Arial"
+    ctx.textAlign = "right"
+
+    const totalSeconds = Math.floor(scoreRef.current / 60)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    const timeString = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
+
+    ctx.fillText(`Time: ${timeString}`, canvas.width - 10, 25)
+    ctx.fillText(`Kills: ${killCountRef.current}`, canvas.width - 10, 50)
+    ctx.fillText(`Wave: ${waveRef.current}`, canvas.width - 10, 75)
+    ctx.shadowBlur = 0
+
+    // ─── TOP-RIGHT (below wave): CACA-DOO cooldown ───
+    const cooldownWidth = 130
+    const cooldownHeight = 22
+    const cooldownX = canvas.width - cooldownWidth - 10
+
+    if (player.stunCooldown > 0) {
+      const stunCooldownPercent = player.stunCooldown / 10000
+      ctx.fillStyle = "rgba(255, 255, 0, 0.8)"
+      ctx.fillRect(cooldownX, 92, cooldownWidth, cooldownHeight)
+      ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
+      ctx.fillRect(cooldownX + cooldownWidth * (1 - stunCooldownPercent), 92, cooldownWidth * stunCooldownPercent, cooldownHeight)
+      ctx.fillStyle = "white"
+      ctx.font = "bold 12px Arial"
+      ctx.textAlign = "center"
+      ctx.fillText(`CACA-DOO: ${Math.ceil(player.stunCooldown / 1000)}s`, cooldownX + cooldownWidth / 2, 107)
+    } else {
+      ctx.fillStyle = "rgba(129, 2, 2, 0.8)"
+      ctx.fillRect(cooldownX, 92, cooldownWidth, cooldownHeight)
+      ctx.fillStyle = "white"
+      ctx.font = "bold 12px Arial"
+      ctx.textAlign = "center"
+      ctx.fillText("CACA-DOO: READY", cooldownX + cooldownWidth / 2, 107)
+    }
+
+    // ─── TOP-RIGHT (below CACA-DOO): Charge cooldown ───
+    if (player.chargeCooldown > 0) {
+      const chargeCooldownPercent = player.chargeCooldown / 15000
+      ctx.fillStyle = "rgba(255, 68, 0, 0.8)"
+      ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
+      ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
+      ctx.fillRect(cooldownX + cooldownWidth * (1 - chargeCooldownPercent), 118, cooldownWidth * chargeCooldownPercent, cooldownHeight)
+      ctx.fillStyle = "white"
+      ctx.font = "bold 12px Arial"
+      ctx.textAlign = "center"
+      ctx.fillText(`CHARGE: ${Math.ceil(player.chargeCooldown / 1000)}s`, cooldownX + cooldownWidth / 2, 133)
+    } else if (!player.isCharging) {
+      ctx.fillStyle = "rgba(0, 13, 255, 0.8)"
+      ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
+      ctx.fillStyle = "white"
+      ctx.font = "bold 12px Arial"
+      ctx.textAlign = "center"
+      ctx.fillText("CHARGE: READY", cooldownX + cooldownWidth / 2, 133)
+    }
+
     ctx.restore()
   }
+
 // Game loop
 type GameLoopFn = ((currentTime: number) => void) & { lastTime?: number }
 
