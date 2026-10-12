@@ -220,79 +220,7 @@ export function ChickenAlienGame() {
     return () => window.removeEventListener("resize", resizeCanvas)
   }, [])
 
-  // Effect 3: Keyboard listeners
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase()
-      keysRef.current.add(key)
 
-      // Double-tap detection for charge
-      const player = playerRef.current
-      const gameRunning = gameStateRef.current === "playing"
-      const directionKeys = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"]
-
-      if (gameRunning && player 
-        && directionKeys.includes(key) 
-        && !player.isCharging && player.chargeCooldown <= 0) {
-        const now = performance.now()
-        const last = lastKeyPressRef.current
-        const DOUBLE_TAP_WINDOW = 250 // ms
-
-        if (last.key === key && now - last.time < DOUBLE_TAP_WINDOW) {
-          // Double-tap detected! Activate charge in this direction.
-          let dirX = 0
-          let dirY = 0
-          switch (key) {
-            case "w":
-            case "arrowup":
-              dirY = -1
-              break
-            case "s":
-            case "arrowdown":
-              dirY = 1
-              break
-            case "a":
-            case "arrowleft":
-              dirX = -1
-              break
-            case "d":
-            case "arrowright":
-              dirX = 1
-              break
-          }
-
-          player.isCharging = true
-          player.chargeDistance = 0
-          player.chargeCooldown = 15000
-          player.chargeDirection = { x: dirX, y: dirY }
-          player.chargeReady = false
-          chargeSound()
-          addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
-          addScreenShake(10)
-
-          // Reset last key so it doesn't retrigger
-          lastKeyPressRef.current = { key: "", time: 0 }
-        } else {
-          lastKeyPressRef.current = { key, time: now }
-        }
-      }
-    }
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysRef.current.delete(e.key.toLowerCase())
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    window.addEventListener("keyup", handleKeyUp)
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
-      window.removeEventListener("keyup", handleKeyUp)
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current)
-      }
-    }
-  }, [])
 
 const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
   if (!joystickActive && gameState === "playing") {
@@ -968,6 +896,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     screenShakeRef.current = Math.max(screenShakeRef.current, intensity)
   }
 
+
   const addFloatingText = (x: number, y: number, text: string, color: string, size = 20) => {
     floatingTextsRef.current.push({
       x,
@@ -979,6 +908,79 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       velocity: { x: 0, y: -1 }, // Initial upward velocity
     })
   }
+    // Effect 3: Keyboard listeners
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      keysRef.current.add(key)
+
+      // Double-tap detection for charge
+      const player = playerRef.current
+      const gameRunning = gameStateRef.current === "playing"
+      const directionKeys = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"]
+
+      if (gameRunning && player 
+        && directionKeys.includes(key) 
+        && !player.isCharging && player.chargeCooldown <= 0) {
+        const now = performance.now()
+        const last = lastKeyPressRef.current
+        const DOUBLE_TAP_WINDOW = 250 // ms
+
+        if (last.key === key && now - last.time < DOUBLE_TAP_WINDOW) {
+          // Double-tap detected! Activate charge in this direction.
+          let dirX = 0
+          let dirY = 0
+          switch (key) {
+            case "w":
+            case "arrowup":
+              dirY = -1
+              break
+            case "s":
+            case "arrowdown":
+              dirY = 1
+              break
+            case "a":
+            case "arrowleft":
+              dirX = -1
+              break
+            case "d":
+            case "arrowright":
+              dirX = 1
+              break
+          }
+
+          player.isCharging = true
+          player.chargeDistance = 0
+          player.chargeCooldown = 15000
+          player.chargeDirection = { x: dirX, y: dirY }
+          player.chargeReady = false
+          chargeSound()
+          addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
+          addScreenShake(10)
+
+          // Reset last key so it doesn't retrigger
+          lastKeyPressRef.current = { key: "", time: 0 }
+        } else {
+          lastKeyPressRef.current = { key, time: now }
+        }
+      }
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysRef.current.delete(e.key.toLowerCase())
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current)
+      }
+    }
+  }, [])
 
   const drawAlienCreature = (ctx: CanvasRenderingContext2D, enemy: Enemy, time: number) => {
     const color = enemy.hitFlash && enemy.hitFlash > 0 ? "#ffffff" : enemy.color || getAlienColor(enemy.type)
