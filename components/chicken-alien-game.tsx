@@ -40,7 +40,9 @@ type Player = GameObject & {
   stunCooldown: number
   isCharging: boolean
   chargeDistance: number
-  invincibleTime: number // frames of invincibility after being hit
+  chargeDirection: { x: number; y: number }  
+  chargeReady: boolean                        
+  invincibleTime: number
 }
 
 type Enemy = GameObject & {
@@ -142,6 +144,7 @@ export function ChickenAlienGame() {
   // Game refs
   const gameStateRef = useRef<GameState>("menu")
   const keysRef = useRef<Set<string>>(new Set())
+  const lastKeyPressRef = useRef<{ key: string; time: number }>({ key: "", time: 0 })
   const mouseRef = useRef({ x: 0, y: 0, down: false })
   const playerRef = useRef<Player | null>(null)
   const enemiesRef = useRef<Enemy[]>([])
@@ -220,7 +223,59 @@ export function ChickenAlienGame() {
   // Effect 3: Keyboard listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      keysRef.current.add(e.key.toLowerCase())
+      const key = e.key.toLowerCase()
+      keysRef.current.add(key)
+
+      // Double-tap detection for charge
+      const player = playerRef.current
+      const gameRunning = gameStateRef.current === "playing"
+      const directionKeys = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"]
+
+      if (gameRunning && player 
+        && directionKeys.includes(key) 
+        && !player.isCharging && player.chargeCooldown <= 0) {
+        const now = performance.now()
+        const last = lastKeyPressRef.current
+        const DOUBLE_TAP_WINDOW = 250 // ms
+
+        if (last.key === key && now - last.time < DOUBLE_TAP_WINDOW) {
+          // Double-tap detected! Activate charge in this direction.
+          let dirX = 0
+          let dirY = 0
+          switch (key) {
+            case "w":
+            case "arrowup":
+              dirY = -1
+              break
+            case "s":
+            case "arrowdown":
+              dirY = 1
+              break
+            case "a":
+            case "arrowleft":
+              dirX = -1
+              break
+            case "d":
+            case "arrowright":
+              dirX = 1
+              break
+          }
+
+          player.isCharging = true
+          player.chargeDistance = 0
+          player.chargeCooldown = 15000
+          player.chargeDirection = { x: dirX, y: dirY }
+          player.chargeReady = false
+          chargeSound()
+          addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
+          addScreenShake(10)
+
+          // Reset last key so it doesn't retrigger
+          lastKeyPressRef.current = { key: "", time: 0 }
+        } else {
+          lastKeyPressRef.current = { key, time: now }
+        }
+      }
     }
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -489,13 +544,14 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       weaponTime: 0,
       shield: false,
       shieldTime: 0,
-      chargeCooldown: 0, // Initialize charge cooldown
-      stunCooldown: 0, // Initialize stun cooldown
+      chargeCooldown: 0,
+      stunCooldown: 0,
       isCharging: false,
       chargeDistance: 0,
+      chargeDirection: { x: 0, y: 0 },  
+      chargeReady: false,                
       invincibleTime: 0,
     }
-
     enemiesRef.current = []
     flyingSaucersRef.current = []
     projectilesRef.current = []
@@ -1060,19 +1116,18 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (keysRef.current.has("d") || keysRef.current.has("arrowright")) dx += 1
     }
 
-    if (player.isCharging) {
-      // Continue charging forward
+      if (player.isCharging) {
+      // Continue charging forward in the stored direction
       const chargeSpeed = 15
-      const angle = Math.atan2(dy, dx) // Use dy/dx for charge direction if available, else player's last movement direction
-      player.x += Math.cos(angle) * chargeSpeed
-      player.y += Math.sin(angle) * chargeSpeed
+      player.x += player.chargeDirection.x * chargeSpeed
+      player.y += player.chargeDirection.y * chargeSpeed
       player.chargeDistance += chargeSpeed
 
       // Kill enemies in path
       enemiesRef.current = enemiesRef.current.filter((enemy) => {
-        const dx = player.x - enemy.x
-        const dy = player.y - enemy.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
+        const edx = player.x - enemy.x
+        const edy = player.y - enemy.y
+        const dist = Math.sqrt(edx * edx + edy * edy)
 
         if (dist < player.radius + enemy.radius) {
           enemyDeadSound()
@@ -1092,6 +1147,40 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (player.chargeDistance > 300) {
         player.isCharging = false
         player.chargeDistance = 0
+        player.chargeDirection = { x: 0, y: 0 }
+      }
+    } else if (player.chargeReady) {
+      // Player has a stored charge from power-up; wait for direction input
+      // If a movement key is pressed, consume it and charge in that direction
+      let dirX = 0
+      let dirY = 0
+      if (keysRef.current.has("w") || keysRef.current.has("arrowup")) dirY = -1
+      if (keysRef.current.has("s") || keysRef.current.has("arrowdown")) dirY = 1
+      if (keysRef.current.has("a") || keysRef.current.has("arrowleft")) dirX = -1
+      if (keysRef.current.has("d") || keysRef.current.has("arrowright")) dirX = 1
+
+      if (dirX !== 0 || dirY !== 0) {
+        // Normalize diagonal
+        const len = Math.sqrt(dirX * dirX + dirY * dirY)
+        player.isCharging = true
+        player.chargeDistance = 0
+        player.chargeDirection = { x: dirX / len, y: dirY / len }
+        player.chargeReady = false
+        chargeSound()
+        addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
+        addScreenShake(10)
+
+        // Also move this frame
+        player.x += player.chargeDirection.x * 15
+        player.y += player.chargeDirection.y * 15
+        player.chargeDistance += 15
+      } else {
+        // No direction pressed, allow normal movement
+        const length = Math.sqrt(dx * dx + dy * dy)
+        if (length > 0) {
+          player.x += (dx / length) * player.speed
+          player.y += (dy / length) * player.speed
+        }
       }
     } else {
       // Normal movement
@@ -1684,14 +1773,10 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             }, 5000)
             addFloatingText(player.x, player.y - 40, "SPEED UP!", "#ff00ff", 20)
             break
-          case "charge":
+                   case "charge":
             if (player.chargeCooldown <= 0) {
-              player.isCharging = true
-              player.chargeDistance = 0
-              player.chargeCooldown = 15000 // 15 second cooldown
-              chargeSound()
-              addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
-              addScreenShake(10)
+              player.chargeReady = true // store charge, wait for direction
+              addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
             }
             break
         }
@@ -2431,10 +2516,28 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       ctx.fillText("CACA-DOO: READY", cooldownX + cooldownWidth / 2, 107)
     }
 
-    // ─── TOP-RIGHT (below CACA-DOO): Charge cooldown ───
-    if (player.chargeCooldown > 0) {
+   
+    // ─── TOP-RIGHT (below CACA-DOO): Charge status ───
+    if (player.isCharging) {
+      // Currently charging
+      ctx.fillStyle = "rgba(255, 68, 0, 0.9)"
+      ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
+      ctx.fillStyle = "white"
+      ctx.font = "bold 12px Arial"
+      ctx.textAlign = "center"
+      ctx.fillText("CHARGING!", cooldownX + cooldownWidth / 2, 133)
+    } else if (player.chargeReady) {
+      // Has stored charge, waiting for direction
+      ctx.fillStyle = "rgba(255, 68, 0, 0.9)"
+      ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
+      ctx.fillStyle = "white"
+      ctx.font = "bold 12px Arial"
+      ctx.textAlign = "center"
+      ctx.fillText("PICK DIRECTION!", cooldownX + cooldownWidth / 2, 133)
+    } else if (player.chargeCooldown > 0) {
+      // Cooldown
       const chargeCooldownPercent = player.chargeCooldown / 15000
-      ctx.fillStyle = "rgba(255, 68, 0, 0.8)"
+      ctx.fillStyle = "rgba(100, 100, 100, 0.8)"
       ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
       ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
       ctx.fillRect(cooldownX + cooldownWidth * (1 - chargeCooldownPercent), 118, cooldownWidth * chargeCooldownPercent, cooldownHeight)
@@ -2442,15 +2545,15 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       ctx.font = "bold 12px Arial"
       ctx.textAlign = "center"
       ctx.fillText(`CHARGE: ${Math.ceil(player.chargeCooldown / 1000)}s`, cooldownX + cooldownWidth / 2, 133)
-    } else if (!player.isCharging) {
-      ctx.fillStyle = "rgba(0, 13, 255, 0.8)"
+    } else {
+      // Ready (no power-up, but can double-tap)
+      ctx.fillStyle = "rgba(0, 255, 0, 0.8)"
       ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
       ctx.fillStyle = "white"
       ctx.font = "bold 12px Arial"
       ctx.textAlign = "center"
       ctx.fillText("CHARGE: READY", cooldownX + cooldownWidth / 2, 133)
     }
-
     ctx.restore()
   }
 
