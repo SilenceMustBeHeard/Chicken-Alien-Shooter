@@ -2196,85 +2196,143 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       ctx.shadowBlur = 0
     }
 
-    // Draw player with spread wings
+    // start of player drawing
+
+    // Draw player — Simple White Rooster (front view)
     ctx.save()
     ctx.translate(player.x, player.y)
 
+    const now = Date.now()
+    const wingFlap = Math.sin(now / 180) * 0.3
+    const bodyBob = Math.sin(now / 300) * 2
+
     if (player.isCharging) {
-      // Draw motion lines
-      ctx.strokeStyle = "rgba(255, 255, 0, 0.6)"
-      ctx.lineWidth = 3
+      ctx.strokeStyle = "rgba(255, 200, 100, 0.8)"
+      ctx.lineWidth = 4
       for (let i = 0; i < 5; i++) {
         ctx.beginPath()
-        ctx.moveTo(-player.radius - 10 - i * 8, 0)
-        ctx.lineTo(-player.radius - 20 - i * 8, 0)
+        ctx.moveTo(-player.radius * 1.4 - i * 10, -12 + i * 6)
+        ctx.lineTo(-player.radius * 1.4 - 24 - i * 10, -12 + i * 6)
         ctx.stroke()
       }
     }
 
-    // Chicken body
-    ctx.fillStyle = "#ffaa00"
+    ctx.translate(0, bodyBob)
+
+    // ─── WINGS (2 big simple shapes) ───
+    ctx.save()
+    ctx.translate(-player.radius * 0.7, 0)
+    ctx.rotate(wingFlap)
+    ctx.fillStyle = "#e8e8e8"
+    ctx.beginPath()
+    ctx.ellipse(-player.radius * 0.5, 0, player.radius * 0.9, player.radius * 0.5, -0.2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = "#888888"
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.restore()
+
+    ctx.save()
+    ctx.translate(player.radius * 0.7, 0)
+    ctx.rotate(-wingFlap)
+    ctx.fillStyle = "#e8e8e8"
+    ctx.beginPath()
+    ctx.ellipse(player.radius * 0.5, 0, player.radius * 0.9, player.radius * 0.5, 0.2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = "#888888"
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.restore()
+
+    // ─── FEET (2 simple triangles) ───
+    ctx.fillStyle = "#ff9900"
+    ctx.strokeStyle = "#aa5500"
+    ctx.lineWidth = 1.5
+    // Left
+    ctx.beginPath()
+    ctx.moveTo(-player.radius * 0.35, player.radius * 0.85)
+    ctx.lineTo(-player.radius * 0.55, player.radius * 1.15)
+    ctx.lineTo(-player.radius * 0.15, player.radius * 1.15)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    // Right
+    ctx.beginPath()
+    ctx.moveTo(player.radius * 0.35, player.radius * 0.85)
+    ctx.lineTo(player.radius * 0.55, player.radius * 1.15)
+    ctx.lineTo(player.radius * 0.15, player.radius * 1.15)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+
+    // ─── BODY (one big white circle) ───
+    ctx.fillStyle = "#ffffff"
     ctx.beginPath()
     ctx.arc(0, 0, player.radius, 0, Math.PI * 2)
     ctx.fill()
+    ctx.strokeStyle = "#666666"
+    ctx.lineWidth = 2
+    ctx.stroke()
 
-    // Left wing (spread out)
-    ctx.fillStyle = "#ff9900"
+    // Subtle belly shadow (one arc)
+    ctx.strokeStyle = "#d0d0d0"
+    ctx.lineWidth = 3
     ctx.beginPath()
-    ctx.ellipse(-player.radius * 0.8, 0, player.radius * 0.7, player.radius * 0.5, -Math.PI / 6, 0, Math.PI * 2)
+    ctx.arc(0, 0, player.radius * 0.7, 0.3, Math.PI - 0.3)
+    ctx.stroke()
+
+    // ─── COMB (one big red blob) ───
+    ctx.fillStyle = "#ee1111"
+    ctx.beginPath()
+    ctx.ellipse(0, -player.radius * 0.95, player.radius * 0.35, player.radius * 0.4, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = "#880000"
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    // ─── BEAK (one big orange triangle) ───
+    ctx.fillStyle = "#ffaa00"
+    ctx.beginPath()
+    ctx.moveTo(-player.radius * 0.2, -player.radius * 0.05)
+    ctx.lineTo(0, player.radius * 0.3)
+    ctx.lineTo(player.radius * 0.2, -player.radius * 0.05)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = "#aa6600"
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    // ─── EYES (2 simple black dots) ───
+    ctx.fillStyle = "#000000"
+    ctx.beginPath()
+    ctx.arc(-player.radius * 0.35, -player.radius * 0.3, player.radius * 0.13, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(player.radius * 0.35, -player.radius * 0.3, player.radius * 0.13, 0, Math.PI * 2)
     ctx.fill()
 
-    // Right wing (spread out)
-    ctx.fillStyle = "#ff9900"
+    // Eye shine (2 tiny white dots)
+    ctx.fillStyle = "#ffffff"
     ctx.beginPath()
-    ctx.ellipse(player.radius * 0.8, 0, player.radius * 0.7, player.radius * 0.5, Math.PI / 6, 0, Math.PI * 2)
+    ctx.arc(-player.radius * 0.32, -player.radius * 0.33, player.radius * 0.05, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(player.radius * 0.38, -player.radius * 0.33, player.radius * 0.05, 0, Math.PI * 2)
     ctx.fill()
 
-    // Wing details (feathers)
-    ctx.strokeStyle = "#cc7700"
-    ctx.lineWidth = 1
-    // Left wing feathers
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath()
-      ctx.moveTo(-player.radius * 0.5, -player.radius * 0.3 + i * 5)
-      ctx.lineTo(-player.radius * 1.2, -player.radius * 0.3 + i * 5)
-      ctx.stroke()
-    }
-    // Right wing feathers
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath()
-      ctx.moveTo(player.radius * 0.5, -player.radius * 0.3 + i * 5)
-      ctx.lineTo(player.radius * 1.2, -player.radius * 0.3 + i * 5)
-      ctx.stroke()
-    }
-
-    // Chicken beak
-    ctx.fillStyle = "#ff6600"
+    // ─── WATTLE (one red blob below beak) ───
+    ctx.fillStyle = "#ee1111"
     ctx.beginPath()
-    ctx.moveTo(player.radius, 0)
-    ctx.lineTo(player.radius + 5, -3)
-    ctx.lineTo(player.radius + 5, 3)
+    ctx.ellipse(0, player.radius * 0.45, player.radius * 0.12, player.radius * 0.2, 0, 0, Math.PI * 2)
     ctx.fill()
+    ctx.strokeStyle = "#880000"
+    ctx.lineWidth = 1.5
+    ctx.stroke()
 
-    // Chicken comb (on top of head)
-    ctx.fillStyle = "#ff0000"
-    ctx.beginPath()
-    ctx.moveTo(-3, -player.radius)
-    ctx.lineTo(-1, -player.radius - 4)
-    ctx.lineTo(1, -player.radius - 2)
-    ctx.lineTo(3, -player.radius - 5)
-    ctx.lineTo(5, -player.radius)
-    ctx.lineTo(0, -player.radius)
-    ctx.fill()
+    ctx.restore()
+    // end of player drawing
 
-    // Chicken eyes
-    ctx.fillStyle = "#000"
-    ctx.beginPath()
-    ctx.arc(3, -5, 2, 0, Math.PI * 2)
-    ctx.arc(3, 5, 2, 0, Math.PI * 2)
-    ctx.fill()
 
-    ctx.restore() // Restore context after player drawing
 
     enemiesRef.current.forEach((enemy) => {
       ctx.save()
