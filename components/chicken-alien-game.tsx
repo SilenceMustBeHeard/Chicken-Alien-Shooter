@@ -2016,21 +2016,193 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       ctx.stroke()
 
       // Type-specific visuals
+
+      // boss Alien Mouse
+         
+        
       if (boss.type === "alienMouse") {
-        // Oversized ears, whiskers, and a twitching alien tail.
-        ctx.fillStyle = bossColor
+        // TAIL
+        const tailWag = Math.sin(bossTime / 150) * 0.3
+        ctx.strokeStyle = "#7c3aed"
+        ctx.lineWidth = boss.radius * 0.15
+        ctx.lineCap = "round"
         ctx.beginPath()
-        ctx.arc(boss.x - boss.radius * 0.62, boss.y - boss.radius * 0.7, boss.radius * 0.42, 0, Math.PI * 2)
-        ctx.arc(boss.x + boss.radius * 0.62, boss.y - boss.radius * 0.7, boss.radius * 0.42, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "#f5d0fe"
-        ctx.lineWidth = 2
+        ctx.moveTo(boss.x - boss.radius * 0.4, boss.y + boss.radius * 0.5)
+        ctx.quadraticCurveTo(
+          boss.x - boss.radius * 1.5,
+          boss.y + boss.radius * 1.0 + tailWag * 20,
+          boss.x - boss.radius * 1.8,
+          boss.y + boss.radius * 0.2 + tailWag * 30
+        )
+        ctx.stroke()
+        ctx.lineCap = "butt"
+
+        // EARS
         for (const offset of [-1, 1]) {
+          ctx.fillStyle = "#7c3aed"
           ctx.beginPath()
-          ctx.moveTo(boss.x + offset * boss.radius * 0.25, boss.y)
-          ctx.lineTo(boss.x + offset * boss.radius * 1.15, boss.y - offset * 8)
+          ctx.ellipse(
+            boss.x + offset * boss.radius * 0.55,
+            boss.y - boss.radius * 0.75,
+            boss.radius * 0.42,
+            boss.radius * 0.55,
+            offset * 0.2,
+            0, Math.PI * 2
+          )
+          ctx.fill()
+          ctx.strokeStyle = "#5b21b6"
+          ctx.lineWidth = 3
           ctx.stroke()
+
+          ctx.fillStyle = "#f9a8d4"
+          ctx.beginPath()
+          ctx.ellipse(
+            boss.x + offset * boss.radius * 0.55,
+            boss.y - boss.radius * 0.75,
+            boss.radius * 0.22,
+            boss.radius * 0.32,
+            offset * 0.2,
+            0, Math.PI * 2
+          )
+          ctx.fill()
         }
+
+        // HEAD
+        const headGrad = ctx.createRadialGradient(
+          boss.x - boss.radius * 0.2, boss.y - boss.radius * 0.3, boss.radius * 0.1,
+          boss.x, boss.y, boss.radius * 1.1
+        )
+        headGrad.addColorStop(0, "#c4b5fd")
+        headGrad.addColorStop(0.6, "#a78bfa")
+        headGrad.addColorStop(1, "#7c3aed")
+        ctx.fillStyle = headGrad
+        ctx.beginPath()
+        ctx.arc(boss.x, boss.y, boss.radius * 0.85, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#5b21b6"
+        ctx.lineWidth = 3
+        ctx.stroke()
+
+        // EYES
+        for (const offset of [-1, 1]) {
+          ctx.fillStyle = "#ffffff"
+          ctx.beginPath()
+          ctx.ellipse(
+            boss.x + offset * boss.radius * 0.32,
+            boss.y - boss.radius * 0.1,
+            boss.radius * 0.22,
+            boss.radius * 0.26,
+            0, 0, Math.PI * 2
+          )
+          ctx.fill()
+          ctx.strokeStyle = "#5b21b6"
+          ctx.lineWidth = 2
+          ctx.stroke()
+
+          ctx.shadowBlur = 12
+          ctx.shadowColor = "#ff0000"
+          ctx.fillStyle = "#cc0000"
+          ctx.beginPath()
+          ctx.arc(
+            boss.x + offset * boss.radius * 0.32,
+            boss.y - boss.radius * 0.08,
+            boss.radius * 0.1,
+            0, Math.PI * 2
+          )
+          ctx.fill()
+          ctx.shadowBlur = 0
+
+          ctx.fillStyle = "#ffffff"
+          ctx.beginPath()
+          ctx.arc(
+            boss.x + offset * boss.radius * 0.35,
+            boss.y - boss.radius * 0.12,
+            boss.radius * 0.035,
+            0, Math.PI * 2
+          )
+          ctx.fill()
+        }
+
+        // EYEBROWS
+        ctx.strokeStyle = "#5b21b6"
+        ctx.lineWidth = 4
+        ctx.lineCap = "round"
+        ctx.beginPath()
+        ctx.moveTo(boss.x - boss.radius * 0.55, boss.y - boss.radius * 0.4)
+        ctx.lineTo(boss.x - boss.radius * 0.15, boss.y - boss.radius * 0.28)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(boss.x + boss.radius * 0.55, boss.y - boss.radius * 0.4)
+        ctx.lineTo(boss.x + boss.radius * 0.15, boss.y - boss.radius * 0.28)
+        ctx.stroke()
+        ctx.lineCap = "butt"
+
+        // NOSE
+        ctx.fillStyle = "#f472b6"
+        ctx.beginPath()
+        ctx.moveTo(boss.x, boss.y + boss.radius * 0.15)
+        ctx.lineTo(boss.x - boss.radius * 0.1, boss.y + boss.radius * 0.28)
+        ctx.lineTo(boss.x + boss.radius * 0.1, boss.y + boss.radius * 0.28)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#be185d"
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+
+        // MOUTH
+        ctx.fillStyle = "#1a0a2a"
+        ctx.beginPath()
+        ctx.ellipse(
+          boss.x,
+          boss.y + boss.radius * 0.48,
+          boss.radius * 0.2,
+          boss.radius * 0.12,
+          0, 0, Math.PI * 2
+        )
+        ctx.fill()
+        ctx.strokeStyle = "#5b21b6"
+        ctx.lineWidth = 2
+        ctx.stroke()
+
+        // FANGS
+        ctx.fillStyle = "#ffffff"
+        ctx.beginPath()
+        ctx.moveTo(boss.x - boss.radius * 0.12, boss.y + boss.radius * 0.42)
+        ctx.lineTo(boss.x - boss.radius * 0.08, boss.y + boss.radius * 0.55)
+        ctx.lineTo(boss.x - boss.radius * 0.04, boss.y + boss.radius * 0.42)
+        ctx.closePath()
+        ctx.fill()
+        ctx.beginPath()
+        ctx.moveTo(boss.x + boss.radius * 0.12, boss.y + boss.radius * 0.42)
+        ctx.lineTo(boss.x + boss.radius * 0.08, boss.y + boss.radius * 0.55)
+        ctx.lineTo(boss.x + boss.radius * 0.04, boss.y + boss.radius * 0.42)
+        ctx.closePath()
+        ctx.fill()
+
+        // WHISKERS
+        const whiskerWave = Math.sin(bossTime / 200) * 4
+        ctx.strokeStyle = "#e9d5ff"
+        ctx.lineWidth = 2
+        ctx.lineCap = "round"
+        ctx.beginPath()
+        ctx.moveTo(boss.x - boss.radius * 0.2, boss.y + boss.radius * 0.3)
+        ctx.lineTo(boss.x - boss.radius * 0.95, boss.y + boss.radius * 0.15 + whiskerWave)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(boss.x - boss.radius * 0.2, boss.y + boss.radius * 0.4)
+        ctx.lineTo(boss.x - boss.radius * 0.9, boss.y + boss.radius * 0.45 - whiskerWave)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(boss.x + boss.radius * 0.2, boss.y + boss.radius * 0.3)
+        ctx.lineTo(boss.x + boss.radius * 0.95, boss.y + boss.radius * 0.15 - whiskerWave)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(boss.x + boss.radius * 0.2, boss.y + boss.radius * 0.4)
+        ctx.lineTo(boss.x + boss.radius * 0.9, boss.y + boss.radius * 0.45 + whiskerWave)
+        ctx.stroke()
+        ctx.lineCap = "butt"
+    
+
       } else if (boss.type === "alienBumblebee") {
         // Stripes and wings make this boss read as a bee at a glance.
         ctx.fillStyle = "#111827"
