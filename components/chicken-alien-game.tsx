@@ -2203,16 +2203,270 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         ctx.lineCap = "butt"
     
 
-      } else if (boss.type === "alienBumblebee") {
-        // Stripes and wings make this boss read as a bee at a glance.
-        ctx.fillStyle = "#111827"
-        ctx.fillRect(boss.x - boss.radius * 0.55, boss.y - 4, boss.radius * 1.1, 8)
-        ctx.fillRect(boss.x - boss.radius * 0.25, boss.y - boss.radius, boss.radius * 0.2, boss.radius * 2)
-        ctx.fillStyle = "rgba(186, 230, 253, 0.75)"
+
+        // boss Alien Bumblebee
+
+
+          } else if (boss.type === "alienBumblebee") {
+        // ─── WINGS (behind body, translucent, flapping) ───
+        const wingFlap = Math.sin(bossTime / 80) * 0.15
+
+        // Left wing
+        ctx.save()
+        ctx.translate(boss.x - boss.radius * 0.5, boss.y - boss.radius * 0.7)
+        ctx.rotate(-0.4 + wingFlap)
+        ctx.fillStyle = "rgba(186, 230, 253, 0.55)"
         ctx.beginPath()
-        ctx.ellipse(boss.x - boss.radius * 0.65, boss.y - boss.radius * 0.45, boss.radius * 0.7, boss.radius * 0.3, -0.35, 0, Math.PI * 2)
-        ctx.ellipse(boss.x + boss.radius * 0.65, boss.y - boss.radius * 0.45, boss.radius * 0.7, boss.radius * 0.3, 0.35, 0, Math.PI * 2)
+        ctx.ellipse(0, 0, boss.radius * 0.85, boss.radius * 0.45, 0, 0, Math.PI * 2)
         ctx.fill()
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.7)"
+        ctx.lineWidth = 2
+        ctx.stroke()
+        // Wing veins
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.5)"
+        ctx.lineWidth = 1
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath()
+          ctx.moveTo(0, 0)
+          ctx.lineTo(
+            Math.cos((i - 1) * 0.4) * boss.radius * 0.7,
+            Math.sin((i - 1) * 0.4) * boss.radius * 0.4
+          )
+          ctx.stroke()
+        }
+        ctx.restore()
+
+        // Right wing
+        ctx.save()
+        ctx.translate(boss.x + boss.radius * 0.5, boss.y - boss.radius * 0.7)
+        ctx.rotate(0.4 - wingFlap)
+        ctx.fillStyle = "rgba(186, 230, 253, 0.55)"
+        ctx.beginPath()
+        ctx.ellipse(0, 0, boss.radius * 0.85, boss.radius * 0.45, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.7)"
+        ctx.lineWidth = 2
+        ctx.stroke()
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.5)"
+        ctx.lineWidth = 1
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath()
+          ctx.moveTo(0, 0)
+          ctx.lineTo(
+            Math.cos((i - 1) * 0.4) * boss.radius * 0.7,
+            Math.sin((i - 1) * 0.4) * boss.radius * 0.4
+          )
+          ctx.stroke()
+        }
+        ctx.restore()
+
+        // ─── LEGS (6 small, sticking out bottom) ───
+        ctx.strokeStyle = "#1a1a1a"
+        ctx.lineWidth = 4
+        ctx.lineCap = "round"
+        for (let i = 0; i < 3; i++) {
+          // Left legs
+          ctx.beginPath()
+          ctx.moveTo(boss.x - boss.radius * 0.5, boss.y + boss.radius * (0.3 + i * 0.15))
+          ctx.lineTo(boss.x - boss.radius * (0.9 + i * 0.05), boss.y + boss.radius * (0.6 + i * 0.15))
+          ctx.stroke()
+          // Right legs
+          ctx.beginPath()
+          ctx.moveTo(boss.x + boss.radius * 0.5, boss.y + boss.radius * (0.3 + i * 0.15))
+          ctx.lineTo(boss.x + boss.radius * (0.9 + i * 0.05), boss.y + boss.radius * (0.6 + i * 0.15))
+          ctx.stroke()
+        }
+        ctx.lineCap = "butt"
+
+        // ─── STINGER (sharp, behind body) ───
+        ctx.fillStyle = "#1a1a1a"
+        ctx.beginPath()
+        ctx.moveTo(boss.x - boss.radius * 0.1, boss.y + boss.radius * 0.7)
+        ctx.lineTo(boss.x, boss.y + boss.radius * 1.15)
+        ctx.lineTo(boss.x + boss.radius * 0.1, boss.y + boss.radius * 0.7)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#000000"
+        ctx.lineWidth = 2
+        ctx.stroke()
+        // Stinger highlight
+        ctx.fillStyle = "#444444"
+        ctx.beginPath()
+        ctx.moveTo(boss.x - boss.radius * 0.03, boss.y + boss.radius * 0.75)
+        ctx.lineTo(boss.x, boss.y + boss.radius * 1.05)
+        ctx.lineTo(boss.x + boss.radius * 0.03, boss.y + boss.radius * 0.75)
+        ctx.closePath()
+        ctx.fill()
+
+        // ─── BODY (big oval, yellow with black stripes) ───
+        const bodyGrad = ctx.createRadialGradient(
+          boss.x - boss.radius * 0.2, boss.y - boss.radius * 0.3, boss.radius * 0.1,
+          boss.x, boss.y, boss.radius * 1.1
+        )
+        bodyGrad.addColorStop(0, "#fef3c7")
+        bodyGrad.addColorStop(0.6, "#facc15")
+        bodyGrad.addColorStop(1, "#ca8a04")
+        ctx.fillStyle = bodyGrad
+        ctx.beginPath()
+        ctx.ellipse(boss.x, boss.y, boss.radius * 1.05, boss.radius * 0.85, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#1a1a1a"
+        ctx.lineWidth = 3
+        ctx.stroke()
+
+        // Black stripes (2 vertical bands)
+        ctx.fillStyle = "#1a1a1a"
+        ctx.beginPath()
+        ctx.ellipse(boss.x - boss.radius * 0.35, boss.y, boss.radius * 0.15, boss.radius * 0.85, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.beginPath()
+        ctx.ellipse(boss.x + boss.radius * 0.35, boss.y, boss.radius * 0.15, boss.radius * 0.85, 0, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Body outline again over stripes
+        ctx.strokeStyle = "#1a1a1a"
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.ellipse(boss.x, boss.y, boss.radius * 1.05, boss.radius * 0.85, 0, 0, Math.PI * 2)
+        ctx.stroke()
+
+        // Fuzzy body texture (small strokes)
+        ctx.strokeStyle = "rgba(202, 138, 4, 0.5)"
+        ctx.lineWidth = 2
+        for (let i = 0; i < 20; i++) {
+          const angle = (i / 20) * Math.PI * 2
+          const x = boss.x + Math.cos(angle) * boss.radius * 0.95
+          const y = boss.y + Math.sin(angle) * boss.radius * 0.75
+          ctx.beginPath()
+          ctx.moveTo(x, y)
+          ctx.lineTo(x + Math.cos(angle) * 5, y + Math.sin(angle) * 5)
+          ctx.stroke()
+        }
+
+        // ─── HEAD (black, on top) ───
+        ctx.fillStyle = "#1a1a1a"
+        ctx.beginPath()
+        ctx.arc(boss.x, boss.y - boss.radius * 0.8, boss.radius * 0.5, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#000000"
+        ctx.lineWidth = 2
+        ctx.stroke()
+
+        // ─── ANTENNAE (2, curved, with balls on top) ───
+        ctx.strokeStyle = "#1a1a1a"
+        ctx.lineWidth = 3
+        ctx.lineCap = "round"
+        // Left antenna
+        ctx.beginPath()
+        ctx.moveTo(boss.x - boss.radius * 0.2, boss.y - boss.radius * 1.05)
+        ctx.quadraticCurveTo(
+          boss.x - boss.radius * 0.5,
+          boss.y - boss.radius * 1.5,
+          boss.x - boss.radius * 0.6,
+          boss.y - boss.radius * 1.7
+        )
+        ctx.stroke()
+        // Right antenna
+        ctx.beginPath()
+        ctx.moveTo(boss.x + boss.radius * 0.2, boss.y - boss.radius * 1.05)
+        ctx.quadraticCurveTo(
+          boss.x + boss.radius * 0.5,
+          boss.y - boss.radius * 1.5,
+          boss.x + boss.radius * 0.6,
+          boss.y - boss.radius * 1.7
+        )
+        ctx.stroke()
+        ctx.lineCap = "butt"
+
+        // Antenna balls
+        ctx.fillStyle = "#facc15"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.6, boss.y - boss.radius * 1.7, boss.radius * 0.1, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#1a1a1a"
+        ctx.lineWidth = 2
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.arc(boss.x + boss.radius * 0.6, boss.y - boss.radius * 1.7, boss.radius * 0.1, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+
+        // ─── EYES (big, red, glowing, angry) ───
+        for (const offset of [-1, 1]) {
+          // Eye white
+          ctx.fillStyle = "#ffffff"
+          ctx.beginPath()
+          ctx.ellipse(
+            boss.x + offset * boss.radius * 0.2,
+            boss.y - boss.radius * 0.85,
+            boss.radius * 0.16,
+            boss.radius * 0.2,
+            0, 0, Math.PI * 2
+          )
+          ctx.fill()
+          ctx.strokeStyle = "#1a1a1a"
+          ctx.lineWidth = 2
+          ctx.stroke()
+
+          // Pupil (red, glowing)
+          ctx.shadowBlur = 10
+          ctx.shadowColor = "#ff0000"
+          ctx.fillStyle = "#cc0000"
+          ctx.beginPath()
+          ctx.arc(
+            boss.x + offset * boss.radius * 0.2,
+            boss.y - boss.radius * 0.85,
+            boss.radius * 0.08,
+            0, Math.PI * 2
+          )
+          ctx.fill()
+          ctx.shadowBlur = 0
+
+          // Pupil shine
+          ctx.fillStyle = "#ffffff"
+          ctx.beginPath()
+          ctx.arc(
+            boss.x + offset * boss.radius * 0.23,
+            boss.y - boss.radius * 0.88,
+            boss.radius * 0.03,
+            0, Math.PI * 2
+          )
+          ctx.fill()
+        }
+
+        // ─── ANGRY EYEBROWS ───
+        ctx.strokeStyle = "#000000"
+        ctx.lineWidth = 4
+        ctx.lineCap = "round"
+        ctx.beginPath()
+        ctx.moveTo(boss.x - boss.radius * 0.4, boss.y - boss.radius * 1.05)
+        ctx.lineTo(boss.x - boss.radius * 0.1, boss.y - boss.radius * 0.95)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(boss.x + boss.radius * 0.4, boss.y - boss.radius * 1.05)
+        ctx.lineTo(boss.x + boss.radius * 0.1, boss.y - boss.radius * 0.95)
+        ctx.stroke()
+        ctx.lineCap = "butt"
+
+        // ─── MOUTH (mandibles / pincers) ───
+        ctx.fillStyle = "#1a1a1a"
+        // Left mandible
+        ctx.beginPath()
+        ctx.moveTo(boss.x - boss.radius * 0.15, boss.y - boss.radius * 0.55)
+        ctx.lineTo(boss.x - boss.radius * 0.35, boss.y - boss.radius * 0.35)
+        ctx.lineTo(boss.x - boss.radius * 0.2, boss.y - boss.radius * 0.4)
+        ctx.closePath()
+        ctx.fill()
+        // Right mandible
+        ctx.beginPath()
+        ctx.moveTo(boss.x + boss.radius * 0.15, boss.y - boss.radius * 0.55)
+        ctx.lineTo(boss.x + boss.radius * 0.35, boss.y - boss.radius * 0.35)
+        ctx.lineTo(boss.x + boss.radius * 0.2, boss.y - boss.radius * 0.4)
+        ctx.closePath()
+        ctx.fill()
+
+
+        // boss Alien Octopus
       } else if (boss.type === "alienOctopus") {
         // Eight glowing tentacle tips surround the body.
         ctx.strokeStyle = "#f9a8d4"
