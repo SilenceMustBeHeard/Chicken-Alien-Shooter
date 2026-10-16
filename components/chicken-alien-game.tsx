@@ -65,7 +65,21 @@ type Enemy = GameObject & {
 type Boss = GameObject & {
   health: number
   maxHealth: number
-  type: "alienMouse" | "alienBumblebee" | "alienOctopus" | "alienMantis" | "abductor" | "queenXenoHen" | "devourer"
+  type:
+    | "alienMouse"
+    | "alienBumblebee"
+    | "alienOctopus"
+    | "alienMantis"
+    | "abductor"
+    | "queenXenoHen"
+    | "devourer"
+    | "theButcher"
+    | "voidReaper"
+    | "plagueBringer"
+    | "ironTyrant"
+    | "voidLeviathan"
+    | "theHive"
+    | "omegaPrime"
   speed: number
   spawnTimer?: number
   buffRadius?: number
@@ -683,8 +697,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     })
   }
 
-  // Spawn boss
-  const spawnBoss = (canvas: HTMLCanvasElement) => {
+   const spawnBoss = (canvas: HTMLCanvasElement) => {
     const bossTypes: Boss["type"][] = [
       "alienMouse",
       "alienBumblebee",
@@ -693,17 +706,29 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       "abductor",
       "queenXenoHen",
       "devourer",
-
+      "theButcher",
+      "voidReaper",
+      "plagueBringer",
+      "ironTyrant",
+      "voidLeviathan",
+      "theHive",
+      "omegaPrime",
     ]
+
     // Bosses rotate through distinct alien species every five waves
     const bossIndex = Math.floor(lastBossWaveRef.current / 5) % bossTypes.length
     const type = bossTypes[bossIndex]
+
+    // Every full cycle through all bosses = +60% HP for extra challenge
+    const cycleNumber = Math.floor(Math.floor(lastBossWaveRef.current / 5) / bossTypes.length)
+    const healthMultiplier = 1 + cycleNumber * 0.6
 
     let health = 100
     let radius = 40
     let speed = 0.3
 
     switch (type) {
+      // ─── EARLY GAME (waves 5-35) ───
       case "alienMouse":
         health = 100
         radius = 34
@@ -722,7 +747,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       case "alienMantis":
         health = 140
         radius = 46
-        speed = 1.80
+        speed = 1.8
         break
       case "abductor":
         health = 200
@@ -739,7 +764,46 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         radius = 55
         speed = 4
         break
+      // ─── LATE GAME (waves 40+) — "THE BIG ONES" ───
+      case "theButcher":
+        health = 320
+        radius = 42
+        speed = 1.3
+        break
+      case "voidReaper":
+        health = 380
+        radius = 48
+        speed = 1.5
+        break
+      case "plagueBringer":
+        health = 420
+        radius = 46
+        speed = 1.0
+        break
+      case "ironTyrant":
+        health = 500
+        radius = 54
+        speed = 0.9
+        break
+      case "voidLeviathan":
+        health = 600
+        radius = 60
+        speed = 0.7
+        break
+      case "theHive":
+        health = 680
+        radius = 58
+        speed = 1.1
+        break
+      case "omegaPrime":
+        health = 900
+        radius = 70
+        speed = 6
+        break
     }
+
+    // Apply cycle multiplier
+    health = Math.floor(health * healthMultiplier)
 
     bossRef.current = {
       x: canvas.width / 2,
@@ -749,7 +813,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       maxHealth: health,
       type,
       speed,
-      spawnTimer: type === "abductor" ? 0 : undefined,
+      spawnTimer: type === "abductor" || type === "theHive" || type === "plagueBringer" ? 0 : undefined,
       buffRadius: type === "queenXenoHen" ? 150 : undefined,
       phase: 1,
     }
@@ -1355,7 +1419,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           }
           break
 
-        case "devourer":
+              case "devourer":
           // Slowly chase player
           const dx = player.x - boss.x
           const dy = player.y - boss.y
@@ -1370,7 +1434,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           const healthPercent = boss.health / boss.maxHealth
           if (healthPercent < 0.33) {
             boss.phase = 3
-            boss.speed = 0.4 // Faster when low health
+            boss.speed = 0.4
           } else if (healthPercent < 0.66) {
             boss.phase = 2
             boss.speed = 0.32
@@ -1379,16 +1443,158 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           // Contact damage
           if (dist < player.radius + boss.radius) {
             if (!player.shield) {
-              player.health -= 2 // Constant drain
-              chickenHitSound() // Changed from damageSound
+              player.health -= 2
+              chickenHitSound()
               if (player.health <= 0) {
-                chickenDeathSound() // Play chicken death sound on game over
+                chickenDeathSound()
                 gameStateRef.current = "gameOver"
                 setGameState("gameOver")
                 setFinalScore(scoreRef.current)
-                setFinalKillCount(killCountRef.current)  
-                setFinalWave(waveRef.current)            
+                setFinalKillCount(killCountRef.current)
+                setFinalWave(waveRef.current)
               }
+            }
+          }
+          break
+
+        // ─── LATE GAME BOSSES ───
+
+        case "theButcher":
+          {
+            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
+            boss.spawnTimer += deltaTime
+
+            const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
+            const phase = Math.floor(boss.spawnTimer / 1800) % 2
+
+            if (phase === 0) {
+              boss.x += Math.cos(angle) * boss.speed * 0.5
+              boss.y += Math.sin(angle) * boss.speed * 0.5
+            } else {
+              boss.x += Math.cos(angle) * boss.speed * 3
+              boss.y += Math.sin(angle) * boss.speed * 3
+            }
+          }
+          break
+
+        case "voidReaper":
+          {
+            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
+            boss.spawnTimer += deltaTime
+
+            if (boss.spawnTimer > 2500) {
+              const angle = Math.atan2(boss.y - player.y, boss.x - player.x)
+              boss.x = player.x + Math.cos(angle) * 250
+              boss.y = player.y + Math.sin(angle) * 250
+              boss.spawnTimer = 0
+            } else {
+              const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
+              boss.x += Math.cos(angle) * boss.speed * 0.6
+              boss.y += Math.sin(angle) * boss.speed * 0.6
+            }
+          }
+          break
+
+        case "plagueBringer":
+          {
+            const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
+            boss.x += Math.cos(angle) * boss.speed * 0.7
+            boss.y += Math.sin(angle) * boss.speed * 0.7
+          }
+          break
+
+        case "ironTyrant":
+          {
+            const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
+            boss.x += Math.cos(angle) * boss.speed
+            boss.y += Math.sin(angle) * boss.speed
+          }
+          break
+
+        case "voidLeviathan":
+          {
+            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
+            boss.spawnTimer += deltaTime
+
+            const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
+            const dashActive = Math.sin(boss.spawnTimer / 2000) > 0.7
+
+            if (dashActive) {
+              boss.x += Math.cos(angle) * boss.speed * 4
+              boss.y += Math.sin(angle) * boss.speed * 4
+            } else {
+              boss.x += Math.cos(angle) * boss.speed * 0.5
+              boss.y += Math.sin(angle) * boss.speed * 0.5
+            }
+          }
+          break
+
+        case "theHive":
+          {
+            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
+            boss.spawnTimer += deltaTime
+
+            const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
+            boss.x += Math.cos(angle) * boss.speed * 0.4
+            boss.y += Math.sin(angle) * boss.speed * 0.4
+
+            if (boss.spawnTimer > 2500) {
+              for (let i = 0; i < 2; i++) {
+                const a = Math.random() * Math.PI * 2
+                enemiesRef.current.push({
+                  x: boss.x + Math.cos(a) * boss.radius,
+                  y: boss.y + Math.sin(a) * boss.radius,
+                  radius: 9,
+                  speed: 0.9,
+                  health: 2,
+                  maxHealth: 2,
+                  groupId: Date.now(),
+                  type: "grunt",
+                  alienType: "grunt",
+                  color: getAlienColor("grunt"),
+                })
+              }
+              boss.spawnTimer = 0
+            }
+          }
+          break
+
+        case "omegaPrime":
+          {
+            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
+            boss.spawnTimer += deltaTime
+
+            const phase = Math.floor(boss.spawnTimer / 3000) % 3
+            const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
+
+            if (phase === 0) {
+              const orbitAngle = boss.spawnTimer / 500
+              boss.x = player.x + Math.cos(orbitAngle) * 280
+              boss.y = player.y + Math.sin(orbitAngle) * 280
+            } else if (phase === 1) {
+              boss.x += Math.cos(angle) * boss.speed * 2.5
+              boss.y += Math.sin(angle) * boss.speed * 2.5
+            } else {
+              boss.x += Math.cos(boss.spawnTimer / 100) * boss.speed
+              boss.y += Math.sin(boss.spawnTimer / 80) * boss.speed
+              boss.x += (player.x - boss.x) * 0.008
+              boss.y += (player.y - boss.y) * 0.008
+            }
+
+            if (phase === 1 && Math.random() < 0.02) {
+              const a = Math.random() * Math.PI * 2
+              enemiesRef.current.push({
+                x: boss.x + Math.cos(a) * boss.radius,
+                y: boss.y + Math.sin(a) * boss.radius,
+                radius: 10,
+                speed: 1.2,
+                health: 3,
+                maxHealth: 3,
+                groupId: Date.now(),
+                type: "grunt",
+                alienType: "grunt",
+                color: getAlienColor("grunt"),
+              })
             }
           }
           break
@@ -3077,6 +3283,104 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
         ctx.fill()
       }
+      else if (boss.type === "theButcher") {
+       
+        ctx.fillStyle = "#ffff00"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.fillStyle = "#000000"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      else if (boss.type === "voidReaper") {
+        
+        ctx.fillStyle = "#ffff00"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.fillStyle = "#000000"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      else if (boss.type === "plagueBringer") {
+       
+        ctx.fillStyle = "#ffff00"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.fillStyle = "#000000"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      else if (boss.type === "ironTyrant") {
+        // Draw intimidating eyes
+        ctx.fillStyle = "#ffff00"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.fillStyle = "#000000"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      else if (boss.type === "voidLeviathan") {
+        
+        ctx.fillStyle = "#ffff00"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.fillStyle = "#000000"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      else if (boss.type === "theHive") {
+        
+        ctx.fillStyle = "#ffff00"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.fillStyle = "#000000"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      else if (boss.type === "omegaPrime") {
+       
+        ctx.fillStyle = "#ffff00"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.fillStyle = "#000000"
+        ctx.beginPath()
+        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.fill()
+      }
 
       ctx.restore()
 
@@ -3099,7 +3403,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       ctx.lineWidth = 2
       ctx.strokeRect(barX, barY, barWidth, barHeight)
 
-      // Boss name and health text
+          // Boss name and health text
       ctx.fillStyle = "#fff"
       ctx.font = "bold 16px Arial"
       ctx.textAlign = "center"
@@ -3111,6 +3415,13 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         abductor: "THE ABDUCTOR",
         queenXenoHen: "QUEEN XENOHEN",
         devourer: "THE DEVOURER",
+        theButcher: "THE BUTCHER",
+        voidReaper: "VOID REAPER",
+        plagueBringer: "PLAGUE BRINGER",
+        ironTyrant: "IRON TYRANT",
+        voidLeviathan: "VOID LEVIATHAN",
+        theHive: "THE HIVE",
+        omegaPrime: "OMEGA PRIME",
       }
       ctx.fillText(`${bossNames[boss.type]} - ${Math.ceil(boss.health)}/${boss.maxHealth}`, canvas.width / 2, barY - 10)
     }
