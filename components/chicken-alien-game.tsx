@@ -3008,250 +3008,885 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       
       
 
+// boss Alien Octopus
+      
+} else if (boss.type === "alienOctopus") {
+  const r = boss.radius
+  const time = bossTime / 300
+  const pulse = 1 + Math.sin(time * 0.8) * 0.025
+  const sway = Math.sin(time) * 0.08
 
-        // boss Alien Octopus
-                } else if (boss.type === "alienOctopus") {
-        const time = bossTime / 300
+  ctx.save()
 
-        // ─── TENTACLES (8, hanging down, wavy) ───
-        for (let i = 0; i < 8; i++) {
-          const spread = (i - 3.5) / 3.5
-          const baseX = boss.x + spread * boss.radius * 0.5
-          const baseY = boss.y + boss.radius * 0.4
 
-          const wave1 = Math.sin(time + i * 0.7) * 0.35
-          const wave2 = Math.sin(time * 1.3 + i * 1.1) * 0.15
-          const length = boss.radius * (1.4 - Math.abs(spread) * 0.3)
+  //  AURA
 
-          const endX = baseX + wave1 * boss.radius * 0.5 + wave2 * boss.radius * 0.3
-          const endY = baseY + length
+  const aura = ctx.createRadialGradient(
+    boss.x, boss.y, r * 0.3,
+    boss.x, boss.y + r * 0.3, r * 1.8
+  )
+  aura.addColorStop(0, "rgba(89, 28, 135, 0.54)")
+  aura.addColorStop(0.6, "rgba(157, 23, 77, 0.47)")
+  aura.addColorStop(1, "rgba(30, 5, 40, 0)")
 
-          const ctrl1X = baseX + wave1 * boss.radius * 0.4
-          const ctrl1Y = baseY + length * 0.35
-          const ctrl2X = endX - wave1 * boss.radius * 0.3
-          const ctrl2Y = endY - length * 0.3
+  ctx.fillStyle = aura
+  ctx.beginPath()
+  ctx.arc(boss.x, boss.y, r * 1.8, 0, Math.PI * 2)
+  ctx.fill()
 
-          const tentacleWidth = boss.radius * 0.22
+ 
+  // TENTACLES
 
-          // 3 passes for taper
-          ctx.strokeStyle = "#ec4899"
-          ctx.lineCap = "round"
+  for (let i = 0; i < 8; i++) {
+    const side = i < 4 ? -1 : 1
+    const index = i < 4 ? i : i - 4
+    const spread = (index - 1.5) / 1.5
 
-          ctx.lineWidth = tentacleWidth
-          ctx.beginPath()
-          ctx.moveTo(baseX, baseY)
-          ctx.bezierCurveTo(ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, endX, endY)
-          ctx.stroke()
+    const baseX = boss.x + side * r * (0.12 + index * 0.13)
+    const baseY = boss.y + r * 0.48
 
-          ctx.lineWidth = tentacleWidth * 0.7
-          ctx.beginPath()
-          ctx.moveTo((baseX + ctrl1X) / 2, (baseY + ctrl1Y) / 2)
-          ctx.bezierCurveTo(ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, endX, endY)
-          ctx.stroke()
+    const length = r * (1.05 + (3 - index) * 0.13)
+    const phase = time * 1.4 + i * 1.15
 
-          ctx.lineWidth = tentacleWidth * 0.4
-          const tipT = 0.6
-          const mt = 1 - tipT
-          const tipStartX = mt*mt*mt*baseX + 3*mt*mt*tipT*ctrl1X + 3*mt*tipT*tipT*ctrl2X + tipT*tipT*tipT*endX
-          const tipStartY = mt*mt*mt*baseY + 3*mt*mt*tipT*ctrl1Y + 3*mt*tipT*tipT*ctrl2Y + tipT*tipT*tipT*endY
-          ctx.beginPath()
-          ctx.moveTo(tipStartX, tipStartY)
-          ctx.bezierCurveTo(ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, endX, endY)
-          ctx.stroke()
+    const wave = Math.sin(phase) * r * 0.24
+    const wave2 = Math.sin(phase * 0.7 + 1) * r * 0.12
 
-          // Highlight
-          ctx.strokeStyle = "#fbcfe8"
-          ctx.lineWidth = tentacleWidth * 0.2
-          ctx.beginPath()
-          ctx.moveTo(baseX - tentacleWidth * 0.15, baseY)
-          ctx.bezierCurveTo(ctrl1X - tentacleWidth * 0.15, ctrl1Y, ctrl2X - tentacleWidth * 0.15, ctrl2Y, endX, endY)
-          ctx.stroke()
+    const endX = baseX + side * r * (0.25 + index * 0.10) + wave
+    const endY = baseY + length
 
-          // Suckers
-          ctx.fillStyle = "#fce7f3"
-          for (let s = 0.25; s <= 0.85; s += 0.2) {
-            const t = s
-            const m = 1 - t
-            const sx = m*m*m*baseX + 3*m*m*t*ctrl1X + 3*m*t*t*ctrl2X + t*t*t*endX
-            const sy = m*m*m*baseY + 3*m*m*t*ctrl1Y + 3*m*t*t*ctrl2Y + t*t*t*endY
-            ctx.beginPath()
-            ctx.arc(sx, sy, tentacleWidth * 0.22, 0, Math.PI * 2)
-            ctx.fill()
-          }
-        }
-        ctx.lineCap = "butt"
+    const c1x = baseX + side * r * 0.12 + wave2
+    const c1y = baseY + length * 0.35
 
-        // ─── HEAD — ORGANIC SHAPE (procedural, breathing) ───
-        const headGrad = ctx.createRadialGradient(
-          boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.4, boss.radius * 0.1,
-          boss.x, boss.y, boss.radius * 1.3
-        )
-        headGrad.addColorStop(0, "#fbcfe8")
-        headGrad.addColorStop(0.5, "#ec4899")
-        headGrad.addColorStop(1, "#831843")
+    const c2x = endX - side * r * 0.18 + wave
+    const c2y = baseY + length * 0.72
 
-        ctx.fillStyle = headGrad
+    // Cubic bezier sampler
+  const pointAt = (t: number) => {
+      const mt = 1 - t
+      return {
+        x: mt * mt * mt * baseX +
+          3 * mt * mt * t * c1x +
+          3 * mt * t * t * c2x +
+          t * t * t * endX,
+        y: mt * mt * mt * baseY +
+          3 * mt * mt * t * c1y +
+          3 * mt * t * t * c2y +
+          t * t * t * endY
+      }
+    }
+
+    // Draw a genuinely tapered tentacle from short segments
+  const segments = 12
+
+
+    for (let j = 0; j < segments; j++) {
+      const t0 = j / segments
+      const t1 = (j + 1) / segments
+      const p0 = pointAt(t0)
+      const p1 = pointAt(t1)
+
+      const width0 = r * (0.19 * (1 - t0) + 0.025)
+      const width1 = r * (0.19 * (1 - t1) + 0.025)
+
+      // Dark armored outline
+      ctx.strokeStyle = "#300b40"
+      ctx.lineWidth = width0 + r * 0.055
+      ctx.lineCap = "round"
+
+      ctx.beginPath()
+      ctx.moveTo(p0.x, p0.y)
+      ctx.lineTo(p1.x, p1.y)
+      ctx.stroke()
+
+      // Main tentacle gradient
+  ctx.strokeStyle = "#a01860" 
+ctx.lineWidth = (width0 + width1) / 2
+ctx.beginPath()
+ctx.moveTo(p0.x, p0.y)
+ctx.lineTo(p1.x, p1.y)
+ctx.stroke()
+
+      // Thin bioluminescent ridge
+      ctx.strokeStyle = "rgba(249, 168, 212, 0.65)"
+      ctx.lineWidth = Math.max(r * 0.012, width0 * 0.12)
+      ctx.beginPath()
+      ctx.moveTo(p0.x - r * 0.025, p0.y)
+      ctx.lineTo(p1.x - r * 0.025, p1.y)
+      ctx.stroke()
+    }
+
+    // Suction cups along the inner side
+   for (let s = 0; s < 3; s++) {
+  const t = 0.28 + s * 0.18
+      const p = pointAt(t)
+      const cupR = r * (0.052 * (1 - t * 0.45))
+
+      // Cup shadow
+      ctx.fillStyle = "#4a103d"
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, cupR * 1.3, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Pink outer ring
+      ctx.fillStyle = "#f9a8d4"
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, cupR, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Dark center
+      ctx.fillStyle = "#8b1c63"
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, cupR * 0.52, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Small wet highlight
+      ctx.fillStyle = "#fff1f7"
+      ctx.beginPath()
+      ctx.arc(
+        p.x - cupR * 0.2,
+        p.y - cupR * 0.25,
+        cupR * 0.18,
+        0, Math.PI * 2
+      )
+      ctx.fill()
+    }
+
+    // Sharp tip
+    const tip = pointAt(1)
+    ctx.fillStyle = "#f472b6"
+    ctx.beginPath()
+    ctx.arc(tip.x, tip.y, r * 0.032, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+
+  // HEAD SHADOW
+ 
+  ctx.fillStyle = "rgba(12, 3, 25, 0.5)"
+  ctx.beginPath()
+  ctx.ellipse(
+    boss.x, boss.y + r * 0.2,
+    r * 0.92, r * 1.03, 0, 0, Math.PI * 2
+  )
+  ctx.fill()
+
+
+  // 4. MANTLE - DISTINCT OCTOPUS HEAD
+ 
+
+  ctx.save()
+  ctx.translate(boss.x, boss.y - r * 0.13)
+  ctx.scale(0.88 * pulse, 1.04 * pulse)
+
+  const headGrad = ctx.createRadialGradient(
+    -r * 0.25, -r * 0.48, r * 0.08,
+    0, 0, r * 1.2
+  )
+  headGrad.addColorStop(0, "#fbcfe8")
+  headGrad.addColorStop(0.22, "#f472b6")
+  headGrad.addColorStop(0.52, "#c02678")
+  headGrad.addColorStop(0.78, "#831843")
+  headGrad.addColorStop(1, "#310b40")
+
+  // Outer mantle
+  ctx.fillStyle = "#310b40"
+  ctx.beginPath()
+  ctx.moveTo(0, -r * 1.08)
+  ctx.bezierCurveTo(
+    r * 0.55, -r * 1.03,
+    r * 0.94, -r * 0.55,
+    r * 0.91, -r * 0.06
+  )
+  ctx.bezierCurveTo(
+    r * 0.91, r * 0.40,
+    r * 0.54, r * 0.72,
+    r * 0.26, r * 0.77
+  )
+  ctx.lineTo(-r * 0.26, r * 0.77)
+  ctx.bezierCurveTo(
+    -r * 0.54, r * 0.72,
+    -r * 0.91, r * 0.40,
+    -r * 0.91, -r * 0.06
+  )
+  ctx.bezierCurveTo(
+    -r * 0.94, -r * 0.55,
+    -r * 0.55, -r * 1.03,
+    0, -r * 1.08
+  )
+  ctx.closePath()
+  ctx.fill()
+
+  // Main skin
+  ctx.fillStyle = headGrad
+  ctx.beginPath()
+  ctx.moveTo(0, -r * 1.02)
+  ctx.bezierCurveTo(
+    r * 0.50, -r * 0.99,
+    r * 0.84, -r * 0.53,
+    r * 0.82, -r * 0.10
+  )
+  ctx.bezierCurveTo(
+    r * 0.82, r * 0.35,
+    r * 0.48, r * 0.66,
+    r * 0.23, r * 0.69
+  )
+  ctx.lineTo(-r * 0.23, r * 0.69)
+  ctx.bezierCurveTo(
+    -r * 0.48, r * 0.66,
+    -r * 0.82, r * 0.35,
+    -r * 0.82, -r * 0.10
+  )
+  ctx.bezierCurveTo(
+    -r * 0.84, -r * 0.53,
+    -r * 0.50, -r * 0.99,
+    0, -r * 1.02
+  )
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.strokeStyle = "#5b123e"
+  ctx.lineWidth = r * 0.035
+  ctx.stroke()
+
+  // Crown ridge
+  ctx.strokeStyle = "rgba(255, 210, 240, 0.55)"
+  ctx.lineWidth = r * 0.025
+  ctx.beginPath()
+  ctx.moveTo(-r * 0.32, -r * 0.66)
+  ctx.quadraticCurveTo(0, -r * 0.91, r * 0.32, -r * 0.66)
+  ctx.stroke()
+
+  // Organic skin markings
+ for (let i = 0; i < 6; i++) {
+    const a = i * 2.399
+    const dist = r * (0.22 + (i % 4) * 0.105)
+    const x = Math.cos(a) * dist * 0.76
+    const y = Math.sin(a) * dist * 0.76 - r * 0.12
+
+    ctx.fillStyle = i % 3 === 0
+      ? "rgba(255, 190, 230, 0.65)"
+      : "rgba(75, 8, 54, 0.35)"
+
+    ctx.beginPath()
+    ctx.ellipse(
+      x, y,
+      r * 0.035, r * 0.052,
+      a, 0, Math.PI * 2
+    )
+    ctx.fill()
+  }
+
+  ctx.restore()
+
+
+  //  EYE SOCKETS
+
+  for (const side of [-1, 1]) {
+    const ex = boss.x + side * r * 0.40
+    const ey = boss.y - r * 0.20
+
+    // Raised socket
+    const socketGrad = ctx.createRadialGradient(
+      ex - side * r * 0.04, ey - r * 0.06, r * 0.02,
+      ex, ey, r * 0.31
+    )
+    socketGrad.addColorStop(0, "#fbcfe8")
+    socketGrad.addColorStop(0.7, "#be185d")
+    socketGrad.addColorStop(1, "#500b40")
+
+    ctx.fillStyle = socketGrad
+    ctx.beginPath()
+    ctx.ellipse(ex, ey, r * 0.30, r * 0.34, side * 0.12, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.strokeStyle = "#4a103d"
+    ctx.lineWidth = r * 0.045
+    ctx.stroke()
+
+    // Dark eye
+    ctx.fillStyle = "#17051f"
+    ctx.beginPath()
+    ctx.ellipse(ex, ey, r * 0.225, r * 0.245, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Golden iris glow
+    ctx.save()
+    ctx.shadowColor = "#facc15"
+    ctx.shadowBlur = r * (0.18 + Math.sin(time * 2) * 0.025)
+
+    const iris = ctx.createRadialGradient(
+      ex - r * 0.035, ey - r * 0.045, r * 0.01,
+      ex, ey, r * 0.19
+    )
+    iris.addColorStop(0, "#fff7ae")
+    iris.addColorStop(0.35, "#facc15")
+    iris.addColorStop(0.75, "#ca8a04")
+    iris.addColorStop(1, "#713f12")
+
+    ctx.fillStyle = iris
+    ctx.beginPath()
+    ctx.arc(ex, ey, r * 0.18, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+
+    // Predator slit
+    ctx.fillStyle = "#16051b"
+    ctx.beginPath()
+    ctx.ellipse(ex, ey, r * 0.038, r * 0.135, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Reflection
+    ctx.fillStyle = "#ffffff"
+    ctx.beginPath()
+    ctx.arc(
+      ex - side * r * 0.065,
+      ey - r * 0.075,
+      r * 0.035, 0, Math.PI * 2
+    )
+    ctx.fill()
+  }
+
+
+  // 6. HEAVY BROW RIDGES
+  
+    for (const side of [-1, 1]) {
+    ctx.lineCap = "round"
+
+    ctx.strokeStyle = "#500b40"
+    ctx.lineWidth = r * 0.12
+    ctx.beginPath()
+    ctx.moveTo(boss.x + side * r * 0.12, boss.y - r * 0.51)
+    ctx.quadraticCurveTo(
+      boss.x + side * r * 0.38,
+      boss.y - r * 0.63,
+      boss.x + side * r * 0.65,
+      boss.y - r * 0.43
+    )
+    ctx.stroke()
+
+    ctx.strokeStyle = "#f9a8d4"
+    ctx.lineWidth = r * 0.023
+    ctx.beginPath()
+    ctx.moveTo(boss.x + side * r * 0.20, boss.y - r * 0.51)
+    ctx.quadraticCurveTo(
+      boss.x + side * r * 0.42,
+      boss.y - r * 0.57,
+      boss.x + side * r * 0.58,
+      boss.y - r * 0.44
+    )
+    ctx.stroke()
+  }
+
+  ctx.lineCap = "butt"
+
+  
+  // BEAK 
+ 
+  const beakY = boss.y + r * 0.29
+
+  const beakGrad = ctx.createLinearGradient(
+    boss.x - r * 0.12, beakY,
+    boss.x + r * 0.12, beakY + r * 0.35
+  )
+  beakGrad.addColorStop(0, "#a78bfa")
+  beakGrad.addColorStop(0.35, "#3b0764")
+  beakGrad.addColorStop(1, "#10051b")
+
+  ctx.fillStyle = "#26082e"
+  ctx.beginPath()
+  ctx.moveTo(boss.x - r * 0.21, beakY)
+  ctx.quadraticCurveTo(
+    boss.x, beakY - r * 0.07,
+    boss.x + r * 0.21, beakY
+  )
+  ctx.lineTo(boss.x + r * 0.06, beakY + r * 0.25)
+  ctx.lineTo(boss.x, beakY + r * 0.34)
+  ctx.lineTo(boss.x - r * 0.06, beakY + r * 0.25)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.fillStyle = beakGrad
+  ctx.beginPath()
+  ctx.moveTo(boss.x - r * 0.15, beakY + r * 0.015)
+  ctx.lineTo(boss.x, beakY + r * 0.09)
+  ctx.lineTo(boss.x + r * 0.15, beakY + r * 0.015)
+  ctx.lineTo(boss.x + r * 0.045, beakY + r * 0.24)
+  ctx.lineTo(boss.x, beakY + r * 0.29)
+  ctx.lineTo(boss.x - r * 0.045, beakY + r * 0.24)
+  ctx.closePath()
+  ctx.fill()
+
+  // Beak highlight
+  ctx.strokeStyle = "#d8b4fe"
+  ctx.lineWidth = r * 0.018
+  ctx.beginPath()
+  ctx.moveTo(boss.x - r * 0.10, beakY + r * 0.04)
+  ctx.lineTo(boss.x, beakY + r * 0.12)
+  ctx.stroke()
+
+ 
+  // SMALL GLOWING CROWN NODES
+
+  for (let i = -2; i <= 2; i++) {
+    const x = boss.x + i * r * 0.22
+    const y = boss.y - r * (0.91 - Math.abs(i) * 0.06)
+    const nodeR = r * (i === 0 ? 0.065 : 0.043)
+
+    ctx.save()
+    ctx.shadowColor = "#f0abfc"
+    ctx.shadowBlur = r * 0.12
+    ctx.fillStyle = i === 0 ? "#ffffff" : "#f0abfc"
+
+    ctx.beginPath()
+    ctx.arc(x, y, nodeR, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+  }
+
+  ctx.restore()
+
+
+
+    // boss Alien Mantis
+      } else if (boss.type === "alienMantis") {
+        const r = boss.radius
+        const t = bossTime
+        const bx = boss.x
+        const by = boss.y
+        const pulse = 1 + Math.sin(t / 200) * 0.03
+        const sway = Math.sin(t / 300) * 0.06
+        const scytheSwing = Math.sin(t / 400) * 0.15
+        const wingFlap = Math.sin(t / 60) * 0.1
+        const eyeGlow = 10 + Math.sin(t / 130) * 6
+
+    
+        // AURA 
+        ctx.save()
+        ctx.globalCompositeOperation = "lighter"
+        const aura = ctx.createRadialGradient(bx, by, r * 0.3, bx, by, r * 1.7)
+        aura.addColorStop(0, "rgba(34, 197, 94, 0.22)")
+        aura.addColorStop(0.6, "rgba(74, 222, 128, 0.08)")
+        aura.addColorStop(1, "rgba(34, 197, 94, 0)")
+        ctx.fillStyle = aura
         ctx.beginPath()
+        ctx.arc(bx, by, r * 1.7, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
 
-        // Generate organic blob shape with N points and noise
-        const numPoints = 24
-        const pulse = 1 + Math.sin(time * 0.8) * 0.04 // breathing
+      
+        // WINGS 
+        ctx.save()
+        ctx.translate(bx, by + r * 0.1)
+        ctx.rotate(-0.4 + wingFlap)
 
-        for (let i = 0; i <= numPoints; i++) {
-          const angle = (i / numPoints) * Math.PI * 2 - Math.PI / 2 // start at top
-          // Different radius per direction — wider on sides, narrower at bottom
-          const verticalFactor = Math.sin(angle) // -1 at top, +1 at bottom (y-axis)
-          const baseRadius = boss.radius * (1.0 - verticalFactor * 0.15) // slightly narrower at bottom
+        const wingGradL = ctx.createLinearGradient(0, 0, -r * 1.4, -r * 0.5)
+        wingGradL.addColorStop(0, "rgba(134, 239, 172, 0.75)")
+        wingGradL.addColorStop(0.6, "rgba(74, 222, 128, 0.4)")
+        wingGradL.addColorStop(1, "rgba(22, 101, 52, 0.6)")
 
-          // Organic noise — multiple frequencies
-          const noise =
-            Math.sin(angle * 3 + time * 1.5) * 0.06 +
-            Math.sin(angle * 5 - time * 0.9) * 0.04 +
-            Math.sin(angle * 7 + time * 1.2) * 0.025
-
-          const r = baseRadius * pulse * (1 + noise)
-
-          // Squash horizontally for octopus head (taller than wide)
-          const x = boss.x + Math.cos(angle) * r * 0.85
-          const y = boss.y + Math.sin(angle) * r * 1.05 - boss.radius * 0.15
-
-          if (i === 0) {
-            ctx.moveTo(x, y)
-          } else {
-            ctx.lineTo(x, y)
-          }
-        }
+        ctx.fillStyle = wingGradL
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.quadraticCurveTo(-r * 0.8, -r * 0.9, -r * 1.5, -r * 0.5)
+        ctx.quadraticCurveTo(-r * 1.2, r * 0.1, 0, r * 0.3)
         ctx.closePath()
         ctx.fill()
-        ctx.strokeStyle = "#831843"
-        ctx.lineWidth = 3
-        ctx.stroke()
-
-        // ─── HEAD TEXTURE (dots) ───
-        ctx.fillStyle = "rgba(157, 23, 77, 0.4)"
-        for (let i = 0; i < 16; i++) {
-          const angle = (i / 16) * Math.PI * 2
-          const r = boss.radius * (0.3 + (i % 4) * 0.12)
-          const x = boss.x + Math.cos(angle) * r * 0.8
-          const y = boss.y - boss.radius * 0.15 + Math.sin(angle) * r * 0.9
-          ctx.beginPath()
-          ctx.arc(x, y, boss.radius * 0.05, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        // ─── EYES (bulging out from sides, alien style) ───
-        for (const offset of [-1, 1]) {
-          const eyeX = boss.x + offset * boss.radius * 0.65
-          const eyeY = boss.y - boss.radius * 0.25
-
-          // Eye socket (bulge)
-          ctx.fillStyle = "#fbcfe8"
-          ctx.beginPath()
-          ctx.arc(eyeX, eyeY, boss.radius * 0.28, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.strokeStyle = "#831843"
-          ctx.lineWidth = 2
-          ctx.stroke()
-
-          // Eye white
-          ctx.fillStyle = "#ffffff"
-          ctx.beginPath()
-          ctx.ellipse(eyeX, eyeY, boss.radius * 0.22, boss.radius * 0.24, 0, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.strokeStyle = "#831843"
-          ctx.lineWidth = 1.5
-          ctx.stroke()
-
-          // Pupil (yellow glow)
-          ctx.shadowBlur = 14
-          ctx.shadowColor = "#ffff00"
-          ctx.fillStyle = "#eab308"
-          ctx.beginPath()
-          ctx.arc(eyeX, eyeY, boss.radius * 0.12, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.shadowBlur = 0
-
-          // Horizontal slit
-          ctx.fillStyle = "#000000"
-          ctx.beginPath()
-          ctx.ellipse(eyeX, eyeY, boss.radius * 0.1, boss.radius * 0.03, 0, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Eye shine
-          ctx.fillStyle = "#ffffff"
-          ctx.beginPath()
-          ctx.arc(eyeX + offset * boss.radius * 0.05, eyeY - boss.radius * 0.09, boss.radius * 0.035, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        // ─── BEAK (center, below eyes) ───
-        ctx.fillStyle = "#1a0a2a"
-        ctx.beginPath()
-        ctx.moveTo(boss.x - boss.radius * 0.16, boss.y + boss.radius * 0.4)
-        ctx.lineTo(boss.x, boss.y + boss.radius * 0.6)
-        ctx.lineTo(boss.x + boss.radius * 0.16, boss.y + boss.radius * 0.4)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#000000"
+        ctx.strokeStyle = "#14532d"
         ctx.lineWidth = 2
         ctx.stroke()
 
-        ctx.fillStyle = "#4c1d95"
+        // Wing veins
+        ctx.strokeStyle = "rgba(20, 83, 45, 0.5)"
+        ctx.lineWidth = 1.5
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath()
+          ctx.moveTo(0, 0)
+          ctx.lineTo(
+            -r * (0.4 + i * 0.25),
+            -r * (0.5 - i * 0.08)
+          )
+          ctx.stroke()
+        }
+        ctx.restore()
+
+        ctx.save()
+        ctx.translate(bx, by + r * 0.1)
+        ctx.rotate(0.4 - wingFlap)
+
+        const wingGradR = ctx.createLinearGradient(0, 0, r * 1.4, -r * 0.5)
+        wingGradR.addColorStop(0, "rgba(134, 239, 172, 0.75)")
+        wingGradR.addColorStop(0.6, "rgba(74, 222, 128, 0.4)")
+        wingGradR.addColorStop(1, "rgba(22, 101, 52, 0.6)")
+
+        ctx.fillStyle = wingGradR
         ctx.beginPath()
-        ctx.moveTo(boss.x - boss.radius * 0.07, boss.y + boss.radius * 0.43)
-        ctx.lineTo(boss.x, boss.y + boss.radius * 0.55)
-        ctx.lineTo(boss.x + boss.radius * 0.07, boss.y + boss.radius * 0.43)
+        ctx.moveTo(0, 0)
+        ctx.quadraticCurveTo(r * 0.8, -r * 0.9, r * 1.5, -r * 0.5)
+        ctx.quadraticCurveTo(r * 1.2, r * 0.1, 0, r * 0.3)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#14532d"
+        ctx.lineWidth = 2
+        ctx.stroke()
+
+        ctx.strokeStyle = "rgba(20, 83, 45, 0.5)"
+        ctx.lineWidth = 1.5
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath()
+          ctx.moveTo(0, 0)
+          ctx.lineTo(
+            r * (0.4 + i * 0.25),
+            -r * (0.5 - i * 0.08)
+          )
+          ctx.stroke()
+        }
+        ctx.restore()
+
+     
+        // SCYTHE ARMS 
+     
+        // LEFT SCYTHE
+        ctx.save()
+        ctx.translate(bx - r * 0.4, by - r * 0.3)
+        ctx.rotate(scytheSwing)
+
+        // Upper arm segment
+        ctx.strokeStyle = "#166534"
+        ctx.lineWidth = r * 0.12
+        ctx.lineCap = "round"
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.lineTo(-r * 0.5, -r * 0.4)
+        ctx.stroke()
+
+        // Scythe blade (curved, sharp)
+        const scytheGradL = ctx.createLinearGradient(-r * 0.5, -r * 0.4, -r * 1.6, -r * 1.0)
+        scytheGradL.addColorStop(0, "#bbf7d0")
+        scytheGradL.addColorStop(0.5, "#86efac")
+        scytheGradL.addColorStop(1, "#14532d")
+
+        ctx.fillStyle = scytheGradL
+        ctx.beginPath()
+        ctx.moveTo(-r * 0.5, -r * 0.4)
+        ctx.quadraticCurveTo(-r * 1.0, -r * 1.3, -r * 1.7, -r * 0.6)
+        ctx.quadraticCurveTo(-r * 1.2, -r * 0.5, -r * 0.9, -r * 0.2)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#052e16"
+        ctx.lineWidth = 2.5
+        ctx.stroke()
+
+        // Scythe edge highlight
+        ctx.strokeStyle = "#dcfce7"
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.moveTo(-r * 0.6, -r * 0.5)
+        ctx.quadraticCurveTo(-r * 1.0, -r * 1.1, -r * 1.5, -r * 0.7)
+        ctx.stroke()
+
+        // Barbed hook at tip
+        ctx.fillStyle = "#bbf7d0"
+        ctx.beginPath()
+        ctx.moveTo(-r * 1.7, -r * 0.6)
+        ctx.lineTo(-r * 1.9, -r * 0.75)
+        ctx.lineTo(-r * 1.75, -r * 0.55)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#052e16"
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+
+        ctx.restore()
+
+        // RIGHT SCYTHE (mirror)
+        ctx.save()
+        ctx.translate(bx + r * 0.4, by - r * 0.3)
+        ctx.rotate(-scytheSwing)
+
+        ctx.strokeStyle = "#166534"
+        ctx.lineWidth = r * 0.12
+        ctx.lineCap = "round"
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.lineTo(r * 0.5, -r * 0.4)
+        ctx.stroke()
+
+        const scytheGradR = ctx.createLinearGradient(r * 0.5, -r * 0.4, r * 1.6, -r * 1.0)
+        scytheGradR.addColorStop(0, "#bbf7d0")
+        scytheGradR.addColorStop(0.5, "#86efac")
+        scytheGradR.addColorStop(1, "#14532d")
+
+        ctx.fillStyle = scytheGradR
+        ctx.beginPath()
+        ctx.moveTo(r * 0.5, -r * 0.4)
+        ctx.quadraticCurveTo(r * 1.0, -r * 1.3, r * 1.7, -r * 0.6)
+        ctx.quadraticCurveTo(r * 1.2, -r * 0.5, r * 0.9, -r * 0.2)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#052e16"
+        ctx.lineWidth = 2.5
+        ctx.stroke()
+
+        ctx.strokeStyle = "#dcfce7"
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.moveTo(r * 0.6, -r * 0.5)
+        ctx.quadraticCurveTo(r * 1.0, -r * 1.1, r * 1.5, -r * 0.7)
+        ctx.stroke()
+
+        ctx.fillStyle = "#bbf7d0"
+        ctx.beginPath()
+        ctx.moveTo(r * 1.7, -r * 0.6)
+        ctx.lineTo(r * 1.9, -r * 0.75)
+        ctx.lineTo(r * 1.75, -r * 0.55)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#052e16"
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+
+        ctx.restore()
+
+      
+        // BODY 
+       
+        ctx.save()
+        ctx.translate(bx + Math.sin(t / 200) * 3, by)  // subtle sway
+        ctx.scale(pulse, pulse)
+
+        // Thorax (upper body)
+        const thoraxGrad = ctx.createRadialGradient(
+          -r * 0.15, -r * 0.2, r * 0.05,
+          0, 0, r * 0.7
+        )
+        thoraxGrad.addColorStop(0, "#dcfce7")
+        thoraxGrad.addColorStop(0.4, "#86efac")
+        thoraxGrad.addColorStop(0.75, "#22c55e")
+        thoraxGrad.addColorStop(1, "#14532d")
+
+        ctx.fillStyle = thoraxGrad
+        ctx.beginPath()
+        ctx.ellipse(0, -r * 0.1, r * 0.55, r * 0.75, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#052e16"
+        ctx.lineWidth = r * 0.045
+        ctx.stroke()
+
+        // Thorax armor plates
+        ctx.strokeStyle = "#166534"
+        ctx.lineWidth = r * 0.03
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath()
+          ctx.moveTo(-r * 0.45, -r * 0.4 + i * r * 0.3)
+          ctx.quadraticCurveTo(0, -r * 0.3 + i * r * 0.3, r * 0.45, -r * 0.4 + i * r * 0.3)
+          ctx.stroke()
+        }
+
+        // Abdomen (lower body, pointed)
+        const abdomenGrad = ctx.createRadialGradient(
+          -r * 0.1, r * 0.3, r * 0.05,
+          0, r * 0.5, r * 0.8
+        )
+        abdomenGrad.addColorStop(0, "#86efac")
+        abdomenGrad.addColorStop(0.5, "#22c55e")
+        abdomenGrad.addColorStop(1, "#14532d")
+
+        ctx.fillStyle = abdomenGrad
+        ctx.beginPath()
+        ctx.moveTo(-r * 0.45, r * 0.4)
+        ctx.quadraticCurveTo(-r * 0.3, r * 1.1, 0, r * 1.25)
+        ctx.quadraticCurveTo(r * 0.3, r * 1.1, r * 0.45, r * 0.4)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#052e16"
+        ctx.lineWidth = r * 0.04
+        ctx.stroke()
+
+        // Abdomen segments
+        ctx.strokeStyle = "#166534"
+        ctx.lineWidth = r * 0.025
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath()
+          ctx.moveTo(-r * 0.3 + i * r * 0.05, r * 0.6 + i * r * 0.18)
+          ctx.quadraticCurveTo(0, r * 0.65 + i * r * 0.18, r * 0.3 - i * r * 0.05, r * 0.6 + i * r * 0.18)
+          ctx.stroke()
+        }
+
+        // Abdomen tip (stinger)
+        ctx.fillStyle = "#bbf7d0"
+        ctx.beginPath()
+        ctx.moveTo(-r * 0.1, r * 1.2)
+        ctx.lineTo(0, r * 1.45)
+        ctx.lineTo(r * 0.1, r * 1.2)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#052e16"
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+
+        ctx.restore()
+
+       
+        // LEGS 
+       
+        ctx.strokeStyle = "#166534"
+        ctx.lineWidth = r * 0.06
+        ctx.lineCap = "round"
+
+        for (let i = 0; i < 2; i++) {
+          const lx = bx + (i === 0 ? -r * 0.35 : r * 0.35)
+          const ly = by + r * 0.25
+          const legWave = Math.sin(t / 200 + i * Math.PI) * r * 0.05
+
+          // Leg
+          ctx.beginPath()
+          ctx.moveTo(lx, ly)
+          ctx.lineTo(lx + (i === 0 ? -r * 0.15 : r * 0.15), ly + r * 0.25)
+          ctx.lineTo(lx + (i === 0 ? -r * 0.25 : r * 0.25) + legWave, ly + r * 0.55)
+          ctx.stroke()
+        }
+        ctx.lineCap = "butt"
+
+        
+        // HEAD 
+      
+        const headY = by - r * 0.95
+        ctx.save()
+        ctx.translate(bx, headY)
+
+        // Head (triangle/diamond)
+        const headGrad = ctx.createRadialGradient(
+          -r * 0.1, -r * 0.1, r * 0.05,
+          0, 0, r * 0.55
+        )
+        headGrad.addColorStop(0, "#dcfce7")
+        headGrad.addColorStop(0.5, "#86efac")
+        headGrad.addColorStop(1, "#166534")
+
+        ctx.fillStyle = headGrad
+        ctx.beginPath()
+        ctx.moveTo(-r * 0.5, -r * 0.25)
+        ctx.lineTo(0, -r * 0.65)
+        ctx.lineTo(r * 0.5, -r * 0.25)
+        ctx.lineTo(r * 0.35, r * 0.25)
+        ctx.lineTo(0, r * 0.45)
+        ctx.lineTo(-r * 0.35, r * 0.25)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#052e16"
+        ctx.lineWidth = r * 0.04
+        ctx.stroke()
+
+     
+        // EYES
+      
+        for (const side of [-1, 1]) {
+          const ex = side * r * 0.22
+          const ey = -r * 0.15
+
+          // Socket
+          ctx.fillStyle = "#170524"
+          ctx.beginPath()
+          ctx.ellipse(ex, ey, r * 0.20, r * 0.25, 0, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Glowing green iris
+          ctx.shadowColor = "#22c55e"
+          ctx.shadowBlur = eyeGlow
+          const eyeGrad = ctx.createRadialGradient(
+            ex - r * 0.04, ey - r * 0.04, r * 0.02,
+            ex, ey, r * 0.16
+          )
+          eyeGrad.addColorStop(0, "#ffffff")
+          eyeGrad.addColorStop(0.3, "#86efac")
+          eyeGrad.addColorStop(0.7, "#22c55e")
+          eyeGrad.addColorStop(1, "#14532d")
+
+          ctx.fillStyle = eyeGrad
+          ctx.beginPath()
+          ctx.ellipse(ex, ey, r * 0.15, r * 0.19, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.shadowBlur = 0
+
+          // Compound facets (dots)
+          ctx.fillStyle = "rgba(5, 46, 22, 0.4)"
+          for (let fx = -1; fx <= 1; fx++) {
+            for (let fy = -1; fy <= 1; fy++) {
+              ctx.beginPath()
+              ctx.arc(ex + fx * r * 0.06, ey + fy * r * 0.07, r * 0.02, 0, Math.PI * 2)
+              ctx.fill()
+            }
+          }
+
+          // Reflection
+          ctx.fillStyle = "#ffffff"
+          ctx.beginPath()
+          ctx.arc(ex - r * 0.04, ey - r * 0.06, r * 0.03, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
+        // Mandibles (small pincers below head)
+        ctx.fillStyle = "#14532d"
+        ctx.beginPath()
+        ctx.moveTo(-r * 0.12, r * 0.35)
+        ctx.lineTo(-r * 0.2, r * 0.55)
+        ctx.lineTo(-r * 0.08, r * 0.45)
+        ctx.closePath()
+        ctx.fill()
+        ctx.beginPath()
+        ctx.moveTo(r * 0.12, r * 0.35)
+        ctx.lineTo(r * 0.2, r * 0.55)
+        ctx.lineTo(r * 0.08, r * 0.45)
         ctx.closePath()
         ctx.fill()
 
-        // ─── EYEBROWS (organic wavy) ───
-        ctx.strokeStyle = "#831843"
-        ctx.lineWidth = 5
+        ctx.restore() // head
+
+      
+        // ANTENNAE 
+       
+        const antennaSway = Math.sin(t / 250) * r * 0.08
+        ctx.strokeStyle = "#166534"
+        ctx.lineWidth = r * 0.04
         ctx.lineCap = "round"
+
+        // Left antenna
         ctx.beginPath()
-        ctx.moveTo(boss.x - boss.radius * 0.8, boss.y - boss.radius * 0.65)
+        ctx.moveTo(bx - r * 0.15, headY - r * 0.5)
         ctx.quadraticCurveTo(
-          boss.x - boss.radius * 0.55, boss.y - boss.radius * 0.7,
-          boss.x - boss.radius * 0.35, boss.y - boss.radius * 0.5
+          bx - r * 0.4,
+          headY - r * 1.1,
+          bx - r * 0.6 + antennaSway,
+          headY - r * 1.5
         )
         ctx.stroke()
+
+        // Right antenna
         ctx.beginPath()
-        ctx.moveTo(boss.x + boss.radius * 0.8, boss.y - boss.radius * 0.65)
+        ctx.moveTo(bx + r * 0.15, headY - r * 0.5)
         ctx.quadraticCurveTo(
-          boss.x + boss.radius * 0.55, boss.y - boss.radius * 0.7,
-          boss.x + boss.radius * 0.35, boss.y - boss.radius * 0.5
+          bx + r * 0.4,
+          headY - r * 1.1,
+          bx + r * 0.6 - antennaSway,
+          headY - r * 1.5
         )
         ctx.stroke()
         ctx.lineCap = "butt"
 
-        // ─── TINY BUMPS on top of head (alien texture) ───
-        ctx.fillStyle = "#f9a8d4"
-        ctx.strokeStyle = "#831843"
-        ctx.lineWidth = 1.5
-        for (let i = 0; i < 5; i++) {
-          const angle = -Math.PI / 2 + (i - 2) * 0.35
-          const r = boss.radius * 0.85
-          const x = boss.x + Math.cos(angle) * r * 0.8
-          const y = boss.y - boss.radius * 0.2 + Math.sin(angle) * r
-          ctx.beginPath()
-          ctx.arc(x, y, boss.radius * 0.07, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-        }
+        // Antenna tips (glowing)
+        ctx.fillStyle = "#bbf7d0"
+        ctx.shadowColor = "#86efac"
+        ctx.shadowBlur = 8
+        ctx.beginPath()
+        ctx.arc(bx - r * 0.6 + antennaSway, headY - r * 1.5, r * 0.05, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(bx + r * 0.6 - antennaSway, headY - r * 1.5, r * 0.05, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.shadowBlur = 0
       
 
-
-        // boss Alien Mantis
-      } else if (boss.type === "alienMantis") {
-        // Long scythe arms give the mantis its sharp silhouette.
-        ctx.strokeStyle = "#bbf7d0"
-        ctx.lineWidth = 7
-        ctx.beginPath()
-        ctx.moveTo(boss.x - boss.radius * 0.35, boss.y)
-        ctx.lineTo(boss.x - boss.radius * 1.3, boss.y - boss.radius * 0.9)
-        ctx.moveTo(boss.x + boss.radius * 0.35, boss.y)
-        ctx.lineTo(boss.x + boss.radius * 1.3, boss.y - boss.radius * 0.9)
-        ctx.stroke()
+        // boss Alien Abductor
       } else if (boss.type === "abductor") {
         // Draw beam effect (adjusted for red boss)
         ctx.strokeStyle = "rgba(204, 0, 0, 0.3)"
@@ -3260,6 +3895,9 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         ctx.moveTo(boss.x, boss.y + boss.radius)
         ctx.lineTo(boss.x, canvas.height)
         ctx.stroke()
+
+
+        // boss Queen Xeno Hen
       } else if (boss.type === "queenXenoHen" && boss.buffRadius) {
         // Draw buff radius (adjusted for red boss)
         ctx.strokeStyle = "rgba(255, 51, 51, 0.2)"
