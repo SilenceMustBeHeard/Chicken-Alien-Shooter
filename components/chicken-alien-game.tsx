@@ -2632,379 +2632,453 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
         // boss Alien Bumblebee
 
-
-           } else if (boss.type === "alienBumblebee") {
+      } else if (boss.type === "alienBumblebee") {
         const t = bossTime
         const r = boss.radius
-        const wingFlap = Math.sin(t / 30) // much faster flap
-        const bodyBob = Math.sin(t / 220) * 2
-        const legTwitch = Math.sin(t / 150) * 2
+        const wingFlap = Math.sin(t / 24)
+        const bodyBob = Math.sin(t / 220) * r * 0.025
+        const legTwitch = Math.sin(t / 75) * r * 0.025
+        const cx = boss.x
+        const cy = boss.y + bodyBob
 
-        // ═══════════════════════════════════════
-        // WINGS (4 total: 2 big outer, 2 small inner)
-        // ═══════════════════════════════════════
-
-        // ─── INNER LEFT WING (behind) ───
         ctx.save()
-        ctx.translate(boss.x - r * 0.4, boss.y - r * 0.5 + bodyBob)
-        ctx.rotate(-0.6 + wingFlap * 0.25)
-        ctx.fillStyle = "rgba(186, 230, 253, 0.35)"
-        ctx.beginPath()
-        ctx.ellipse(0, 0, r * 0.7, r * 0.35, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "rgba(147, 197, 253, 0.6)"
-        ctx.lineWidth = 1.5
-        ctx.stroke()
-        ctx.restore()
 
-        // ─── INNER RIGHT WING ───
-        ctx.save()
-        ctx.translate(boss.x + r * 0.4, boss.y - r * 0.5 + bodyBob)
-        ctx.rotate(0.6 - wingFlap * 0.25)
-        ctx.fillStyle = "rgba(186, 230, 253, 0.35)"
-        ctx.beginPath()
-        ctx.ellipse(0, 0, r * 0.7, r * 0.35, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "rgba(147, 197, 253, 0.6)"
-        ctx.lineWidth = 1.5
-        ctx.stroke()
-        ctx.restore()
+        
+        //  WINGS 
+       
+        const drawWing = (side: number, outer: boolean) => {
+          ctx.save()
 
-        // ─── OUTER LEFT WING (front, bigger) ───
-        ctx.save()
-        ctx.translate(boss.x - r * 0.5, boss.y - r * 0.6 + bodyBob)
-        ctx.rotate(-0.7 + wingFlap * 0.35)
-        const wingGradL = ctx.createLinearGradient(0, 0, -r * 1.1, 0)
-        wingGradL.addColorStop(0, "rgba(224, 242, 254, 0.85)")
-        wingGradL.addColorStop(1, "rgba(147, 197, 253, 0.5)")
-        ctx.fillStyle = wingGradL
-        ctx.beginPath()
-        ctx.ellipse(0, 0, r * 0.95, r * 0.42, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.8)"
-        ctx.lineWidth = 2
-        ctx.stroke()
-        // Wing veins
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.5)"
-        ctx.lineWidth = 1.2
-        for (let i = 0; i < 4; i++) {
+          const wingX = cx + side * r * (outer ? 0.43 : 0.29)
+          const wingY = cy - r * 0.36
+          const wingLength = r * (outer ? 0.82 : 0.59)
+          const wingHeight = r * (outer ? 0.34 : 0.25)
+          const flap = wingFlap * (outer ? 0.25 : 0.19)
+
+          ctx.translate(wingX, wingY)
+          ctx.rotate(side * (outer ? 0.62 : 0.48) - side * flap)
+
+          ctx.fillStyle = outer
+            ? "rgba(186, 230, 253, 0.48)"
+            : "rgba(224, 242, 254, 0.30)"
+
           ctx.beginPath()
-          ctx.moveTo(0, 0)
-          ctx.lineTo(
-            Math.cos(-0.3 + i * 0.2) * r * 0.85,
-            Math.sin(-0.3 + i * 0.2) * r * 0.35
+          ctx.ellipse(
+            side * wingLength * 0.35,
+            -r * 0.04,
+            wingLength,
+            wingHeight,
+            side * 0.12,
+            0,
+            Math.PI * 2
           )
-          ctx.stroke()
-        }
-        ctx.restore()
+          ctx.fill()
 
-        // ─── OUTER RIGHT WING ───
-        ctx.save()
-        ctx.translate(boss.x + r * 0.5, boss.y - r * 0.6 + bodyBob)
-        ctx.rotate(0.7 - wingFlap * 0.35)
-        const wingGradR = ctx.createLinearGradient(0, 0, r * 1.1, 0)
-        wingGradR.addColorStop(0, "rgba(224, 242, 254, 0.85)")
-        wingGradR.addColorStop(1, "rgba(147, 197, 253, 0.5)")
-        ctx.fillStyle = wingGradR
-        ctx.beginPath()
-        ctx.ellipse(0, 0, r * 0.95, r * 0.42, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.8)"
-        ctx.lineWidth = 2
-        ctx.stroke()
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.5)"
-        ctx.lineWidth = 1.2
-        for (let i = 0; i < 4; i++) {
-          ctx.beginPath()
-          ctx.moveTo(0, 0)
-          ctx.lineTo(
-            Math.cos(-0.3 + i * 0.2) * r * 0.85,
-            Math.sin(-0.3 + i * 0.2) * r * 0.35
-          )
+          ctx.strokeStyle = "rgba(147, 197, 253, 0.72)"
+          ctx.lineWidth = Math.max(1, r * 0.012)
           ctx.stroke()
-        }
-        ctx.restore()
 
-        // ═══════════════════════════════════════
-        // LEGS (6, twitching)
-        // ═══════════════════════════════════════
-        ctx.strokeStyle = "#1a1a1a"
-        ctx.lineWidth = 4
+          // A few clean wing veins
+          ctx.strokeStyle = "rgba(96, 165, 250, 0.58)"
+          ctx.lineWidth = Math.max(0.8, r * 0.009)
+
+          for (let i = 0; i < 3; i++) {
+            const startX = side * wingLength * 0.08
+            const endX = side * wingLength * (0.38 + i * 0.22)
+
+            ctx.beginPath()
+            ctx.moveTo(startX, 0)
+            ctx.quadraticCurveTo(
+              endX * 0.45,
+              -wingHeight * 0.9,
+              endX,
+              wingHeight * (i - 1) * 0.48
+            )
+            ctx.stroke()
+          }
+
+          ctx.restore()
+        }
+
+        // Rear wings first, then the larger front pair
+        drawWing(-1, false)
+        drawWing(1, false)
+        drawWing(-1, true)
+        drawWing(1, true)
+
+       
+        //  SEGMENTED LEGS
+  
         ctx.lineCap = "round"
+        ctx.lineJoin = "round"
+
         for (let i = 0; i < 3; i++) {
-          const legY = boss.y + r * (0.15 + i * 0.18) + bodyBob
-          const twitch = Math.sin(t / 100 + i) * legTwitch
+          const legY = cy + r * (0.20 + i * 0.19)
+          const spread = r * (0.66 + i * 0.12)
+          const twitch = legTwitch * (i + 1) * 0.45
 
-          // Left legs
-          ctx.beginPath()
-          ctx.moveTo(boss.x - r * 0.5, legY)
-          ctx.quadraticCurveTo(
-            boss.x - r * 0.85,
-            legY + r * 0.1,
-            boss.x - r * 1.1 + twitch,
-            legY + r * 0.35 + twitch
-          )
-          ctx.stroke()
+          for (const side of [-1, 1]) {
+            ctx.strokeStyle = "#38200b"
+            ctx.lineWidth = Math.max(2, r * 0.055)
 
-          // Right legs
-          ctx.beginPath()
-          ctx.moveTo(boss.x + r * 0.5, legY)
-          ctx.quadraticCurveTo(
-            boss.x + r * 0.85,
-            legY + r * 0.1,
-            boss.x + r * 1.1 - twitch,
-            legY + r * 0.35 - twitch
-          )
-          ctx.stroke()
+            ctx.beginPath()
+            ctx.moveTo(cx + side * r * 0.43, legY)
+            ctx.quadraticCurveTo(
+              cx + side * r * 0.65,
+              legY + r * 0.08,
+              cx + side * spread + twitch,
+              legY + r * 0.25
+            )
+            ctx.lineTo(
+              cx + side * (spread + r * 0.09) + twitch,
+              legY + r * 0.39
+            )
+            ctx.stroke()
+
+            // Small golden joint
+            ctx.fillStyle = "#d6a329"
+            ctx.beginPath()
+            ctx.arc(
+              cx + side * spread + twitch,
+              legY + r * 0.25,
+              r * 0.035,
+              0,
+              Math.PI * 2
+            )
+            ctx.fill()
+          }
         }
+
         ctx.lineCap = "butt"
 
-        // ═══════════════════════════════════════
-        // STINGER (sharp, dripping venom)
-        // ═══════════════════════════════════════
-        ctx.fillStyle = "#0a0a0a"
+       
+        // LONGER STINGER
+      
+        const stingerY = cy + r * 0.69
+
+        ctx.fillStyle = "#38200b"
         ctx.beginPath()
-        ctx.moveTo(boss.x - r * 0.08, boss.y + r * 0.75 + bodyBob)
-        ctx.lineTo(boss.x, boss.y + r * 1.25 + bodyBob)
-        ctx.lineTo(boss.x + r * 0.08, boss.y + r * 0.75 + bodyBob)
+        ctx.moveTo(cx - r * 0.105, stingerY)
+        ctx.quadraticCurveTo(
+          cx,
+          stingerY + r * 0.04,
+          cx + r * 0.105,
+          stingerY
+        )
+        ctx.lineTo(cx, stingerY + r * 0.55)
         ctx.closePath()
         ctx.fill()
-        ctx.strokeStyle = "#000000"
-        ctx.lineWidth = 2
-        ctx.stroke()
 
-        // Venom drop
-        const dropOffset = (t / 100) % 20
-        ctx.fillStyle = "rgba(132, 204, 22, 0.9)"
-        ctx.shadowBlur = 8
-        ctx.shadowColor = "#84cc16"
+        ctx.fillStyle = "#a16207"
         ctx.beginPath()
-        ctx.arc(boss.x, boss.y + r * 1.25 + dropOffset + bodyBob, r * 0.05, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.shadowBlur = 0
-
-        // ═══════════════════════════════════════
-        // BODY (oval, yellow + black stripes)
-        // ═══════════════════════════════════════
-        ctx.save()
-        ctx.translate(0, bodyBob)
-
-        // Shadow
-        ctx.fillStyle = "rgba(0, 0, 0, 0.3)"
-        ctx.beginPath()
-        ctx.ellipse(boss.x, boss.y + r * 0.95, r * 0.9, r * 0.15, 0, 0, Math.PI * 2)
+        ctx.moveTo(cx - r * 0.035, stingerY + r * 0.10)
+        ctx.lineTo(cx, stingerY + r * 0.48)
+        ctx.lineTo(cx + r * 0.035, stingerY + r * 0.10)
+        ctx.closePath()
         ctx.fill()
 
-        // Body base
-        const bodyGrad = ctx.createRadialGradient(
-          boss.x - r * 0.3, boss.y - r * 0.35, r * 0.1,
-          boss.x, boss.y, r * 1.15
+        // One small venom drop, without a costly glow
+        const dropOffset = (t / 100) % 14
+
+        ctx.fillStyle = "#84cc16"
+        ctx.beginPath()
+        ctx.arc(
+          cx,
+          stingerY + r * 0.55 + dropOffset,
+          r * 0.035,
+          0,
+          Math.PI * 2
         )
-        bodyGrad.addColorStop(0, "#fef9c3")
-        bodyGrad.addColorStop(0.5, "#facc15")
-        bodyGrad.addColorStop(0.85, "#eab308")
-        bodyGrad.addColorStop(1, "#a16207")
+        ctx.fill()
+
+        
+        //  FUZZY, GOLDEN ABDOMEN
+        
+        // Soft ground shadow
+        ctx.fillStyle = "rgba(0, 0, 0, 0.22)"
+        ctx.beginPath()
+        ctx.ellipse(
+          cx,
+          cy + r * 0.89,
+          r * 0.73,
+          r * 0.12,
+          0,
+          0,
+          Math.PI * 2
+        )
+        ctx.fill()
+
+        const bodyGrad = ctx.createRadialGradient(
+          cx - r * 0.32,
+          cy - r * 0.35,
+          r * 0.08,
+          cx,
+          cy,
+          r * 1.12
+        )
+
+        bodyGrad.addColorStop(0, "#fff9cf")
+        bodyGrad.addColorStop(0.35, "#facc15")
+        bodyGrad.addColorStop(0.75, "#eab308")
+        bodyGrad.addColorStop(1, "#92400e")
 
         ctx.fillStyle = bodyGrad
         ctx.beginPath()
-        ctx.ellipse(boss.x, boss.y, r * 1.05, r * 0.85, 0, 0, Math.PI * 2)
+        ctx.ellipse(
+          cx,
+          cy,
+          r * 0.91,
+          r * 0.73,
+          0,
+          0,
+          Math.PI * 2
+        )
         ctx.fill()
 
-        // Black stripes (3 bands, curved)
+        // Three HORIZONTAL black bands (real bee style), clipped to abdomen
         ctx.save()
         ctx.beginPath()
-        ctx.ellipse(boss.x, boss.y, r * 1.05, r * 0.85, 0, 0, Math.PI * 2)
+        ctx.ellipse(
+          cx,
+          cy,
+          r * 0.91,
+          r * 0.73,
+          0,
+          0,
+          Math.PI * 2
+        )
         ctx.clip()
 
-        ctx.fillStyle = "#1a1a1a"
+        ctx.fillStyle = "#1a120a"
+
+        // 3 horizontal stripes, thicker
         for (let i = -1; i <= 1; i++) {
+          const stripeY = cy + i * r * 0.32
+
           ctx.beginPath()
           ctx.ellipse(
-            boss.x + i * r * 0.45,
-            boss.y,
-            r * 0.13,
+            cx,
+            stripeY,
             r * 1.0,
-            0, 0, Math.PI * 2
+            r * 0.14,
+            0,
+            0,
+            Math.PI * 2
           )
           ctx.fill()
         }
-        ctx.restore()
-
-        // Body outline
-        ctx.strokeStyle = "#1a1a1a"
-        ctx.lineWidth = 3
-        ctx.beginPath()
-        ctx.ellipse(boss.x, boss.y, r * 1.05, r * 0.85, 0, 0, Math.PI * 2)
-        ctx.stroke()
-
-        // Fuzzy highlight (top-left)
-        ctx.fillStyle = "rgba(255, 255, 200, 0.4)"
-        ctx.beginPath()
-        ctx.ellipse(boss.x - r * 0.35, boss.y - r * 0.3, r * 0.35, r * 0.25, -0.4, 0, Math.PI * 2)
-        ctx.fill()
 
         ctx.restore()
 
-        // ═══════════════════════════════════════
-        // HEAD (round, black, with fuzz)
-        // ═══════════════════════════════════════
-        const headY = boss.y - r * 0.85 + bodyBob
-
-        // Head base
-        ctx.fillStyle = "#1a1a1a"
+        // Abdomen outline
+        ctx.strokeStyle = "#8a5b16"
+        ctx.lineWidth = Math.max(1.5, r * 0.025)
         ctx.beginPath()
-        ctx.arc(boss.x, headY, r * 0.55, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "#000000"
-        ctx.lineWidth = 2
+        ctx.ellipse(
+          cx,
+          cy,
+          r * 0.91,
+          r * 0.73,
+          0,
+          0,
+          Math.PI * 2
+        )
         ctx.stroke()
 
-        // Head fuzz highlights
-        ctx.strokeStyle = "rgba(100, 100, 100, 0.5)"
-        ctx.lineWidth = 1
-        for (let i = 0; i < 12; i++) {
-          const angle = (i / 12) * Math.PI * 2
-          const x = boss.x + Math.cos(angle) * r * 0.5
-          const y = headY + Math.sin(angle) * r * 0.5
+        // Fuzzy highlight
+        ctx.fillStyle = "rgba(255, 255, 210, 0.32)"
+        ctx.beginPath()
+        ctx.ellipse(
+          cx - r * 0.31,
+          cy - r * 0.30,
+          r * 0.29,
+          r * 0.17,
+          -0.4,
+          0,
+          Math.PI * 2
+        )
+        ctx.fill()
+
+        
+        //  HEAD
+       
+        const headY = cy - r * 0.70
+        const headR = r * 0.48
+
+        const headGrad = ctx.createRadialGradient(
+          cx - headR * 0.32,
+          headY - headR * 0.38,
+          headR * 0.04,
+          cx,
+          headY,
+          headR * 1.2
+        )
+
+        headGrad.addColorStop(0, "#4b4538")
+        headGrad.addColorStop(0.55, "#24211d")
+        headGrad.addColorStop(1, "#090909")
+
+        ctx.fillStyle = headGrad
+        ctx.beginPath()
+        ctx.arc(cx, headY, headR, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.strokeStyle = "#100d0a"
+        ctx.lineWidth = Math.max(1.5, r * 0.025)
+        ctx.stroke()
+
+        // Subtle fuzz around the head
+        ctx.strokeStyle = "rgba(220, 190, 125, 0.48)"
+        ctx.lineWidth = Math.max(0.8, r * 0.009)
+
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * Math.PI * 2
+          const x = cx + Math.cos(a) * headR * 0.93
+          const y = headY + Math.sin(a) * headR * 0.93
+
           ctx.beginPath()
           ctx.moveTo(x, y)
-          ctx.lineTo(x + Math.cos(angle) * 4, y + Math.sin(angle) * 4)
+          ctx.lineTo(
+            x + Math.cos(a) * r * 0.045,
+            y + Math.sin(a) * r * 0.045
+          )
           ctx.stroke()
         }
 
-        // ═══════════════════════════════════════
-        // FACETED EYES (2 big, glowing red)
-        // ═══════════════════════════════════════
-        for (const offset of [-1, 1]) {
-          const eyeX = boss.x + offset * r * 0.25
-          const eyeY = headY - r * 0.05
+        
+        // COMPOUND EYES (with subtle glow)
+        
+        for (const side of [-1, 1]) {
+          const eyeX = cx + side * r * 0.255
+          const eyeY = headY - r * 0.015
+          const eyeRX = r * 0.17
+          const eyeRY = r * 0.205
 
-          // Eye socket (big oval)
           const eyeGrad = ctx.createRadialGradient(
-            eyeX - r * 0.05, eyeY - r * 0.05, r * 0.02,
-            eyeX, eyeY, r * 0.22
+            eyeX - eyeRX * 0.35,
+            eyeY - eyeRY * 0.38,
+            r * 0.01,
+            eyeX,
+            eyeY,
+            eyeRY * 1.3
           )
-          eyeGrad.addColorStop(0, "#ff6666")
-          eyeGrad.addColorStop(0.6, "#cc0000")
-          eyeGrad.addColorStop(1, "#660000")
+
+          eyeGrad.addColorStop(0, "#ff9999")
+          eyeGrad.addColorStop(0.32, "#ef4444")
+          eyeGrad.addColorStop(0.72, "#b91c1c")
+          eyeGrad.addColorStop(1, "#450a0a")
+
+          // Glow (only 1 shadowBlur for all eyes)
+          ctx.save()
+          ctx.shadowColor = "#ff2222"
+          ctx.shadowBlur = r * 0.12
 
           ctx.fillStyle = eyeGrad
           ctx.beginPath()
-          ctx.ellipse(eyeX, eyeY, r * 0.2, r * 0.24, 0, 0, Math.PI * 2)
+          ctx.ellipse(
+            eyeX,
+            eyeY,
+            eyeRX,
+            eyeRY,
+            side * 0.10,
+            0,
+            Math.PI * 2
+          )
           ctx.fill()
+          ctx.restore()
 
-          // Facet pattern (hex grid feel)
-          ctx.strokeStyle = "rgba(255, 200, 200, 0.4)"
-          ctx.lineWidth = 0.8
-          for (let fx = -2; fx <= 2; fx++) {
-            for (let fy = -2; fy <= 2; fy++) {
-              if (fx * fx + fy * fy > 5) continue
-              ctx.beginPath()
-              ctx.arc(
-                eyeX + fx * r * 0.06,
-                eyeY + fy * r * 0.07,
-                r * 0.025,
-                0, Math.PI * 2
-              )
-              ctx.stroke()
-            }
+          ctx.strokeStyle = "#450a0a"
+          ctx.lineWidth = Math.max(1, r * 0.018)
+          ctx.stroke()
+
+          // Sparse facets 
+          ctx.strokeStyle = "rgba(255, 220, 220, 0.55)"
+          ctx.lineWidth = Math.max(0.7, r * 0.008)
+
+          for (let i = -1; i <= 1; i++) {
+            ctx.beginPath()
+            ctx.arc(
+              eyeX + i * eyeRX * 0.45,
+              eyeY,
+              r * 0.025,
+              0,
+              Math.PI * 2
+            )
+            ctx.stroke()
           }
 
-          // Eye glow
-          ctx.shadowBlur = 15
-          ctx.shadowColor = "#ff0000"
-          ctx.strokeStyle = "#ff3333"
-          ctx.lineWidth = 2
+          // Small natural reflection
+          ctx.fillStyle = "#fff1f2"
           ctx.beginPath()
-          ctx.ellipse(eyeX, eyeY, r * 0.2, r * 0.24, 0, 0, Math.PI * 2)
-          ctx.stroke()
-          ctx.shadowBlur = 0
-
-          // Pupil shine
-          ctx.fillStyle = "#ffffff"
-          ctx.beginPath()
-          ctx.arc(eyeX - r * 0.05, eyeY - r * 0.08, r * 0.05, 0, Math.PI * 2)
+          ctx.arc(
+            eyeX - side * r * 0.045,
+            eyeY - r * 0.075,
+            r * 0.028,
+            0,
+            Math.PI * 2
+          )
           ctx.fill()
         }
 
-        // ═══════════════════════════════════════
-        // MANDIBLES (2 pincers below head)
-        // ═══════════════════════════════════════
-        ctx.fillStyle = "#0a0a0a"
-        ctx.strokeStyle = "#333333"
-        ctx.lineWidth = 1.5
+        
+        // MANDIBLES 
 
-        // Left mandible
-        ctx.beginPath()
-        ctx.moveTo(boss.x - r * 0.15, headY + r * 0.45)
-        ctx.lineTo(boss.x - r * 0.4, headY + r * 0.65)
-        ctx.lineTo(boss.x - r * 0.25, headY + r * 0.5)
-        ctx.closePath()
-        ctx.fill()
-        ctx.stroke()
+        for (const side of [-1, 1]) {
+          ctx.fillStyle = "#342016"
+          ctx.strokeStyle = "#0c0805"
+          ctx.lineWidth = Math.max(0.8, r * 0.012)
 
-        // Right mandible
-        ctx.beginPath()
-        ctx.moveTo(boss.x + r * 0.15, headY + r * 0.45)
-        ctx.lineTo(boss.x + r * 0.4, headY + r * 0.65)
-        ctx.lineTo(boss.x + r * 0.25, headY + r * 0.5)
-        ctx.closePath()
-        ctx.fill()
-        ctx.stroke()
+          ctx.beginPath()
+          ctx.moveTo(cx + side * r * 0.08, headY + r * 0.35)
+          ctx.lineTo(cx + side * r * 0.14, headY + r * 0.42)
+          ctx.lineTo(cx + side * r * 0.10, headY + r * 0.44)
+          ctx.lineTo(cx + side * r * 0.06, headY + r * 0.40)
+          ctx.closePath()
+          ctx.fill()
+          ctx.stroke()
+        }
 
-        // ═══════════════════════════════════════
-        // ANTENNAE (2, curved, with glowing tips)
-        // ═══════════════════════════════════════
-        const antTwitch = Math.sin(t / 180) * 3
+        
+        // ANTENNAE 
+        
+        const antTwitch = Math.sin(t / 150) * r * 0.035
 
-        ctx.strokeStyle = "#1a1a1a"
-        ctx.lineWidth = 4
+        ctx.strokeStyle = "#21170f"
+        ctx.lineWidth = Math.max(2, r * 0.045)
         ctx.lineCap = "round"
 
-        // Left antenna
-        ctx.beginPath()
-        ctx.moveTo(boss.x - r * 0.25, headY - r * 0.4)
-        ctx.quadraticCurveTo(
-          boss.x - r * 0.55,
-          headY - r * 0.95,
-          boss.x - r * 0.65 + antTwitch,
-          headY - r * 1.35
-        )
-        ctx.stroke()
+        for (const side of [-1, 1]) {
+          const startX = cx + side * r * 0.19
+          const startY = headY - headR * 0.72
+          const tipX = cx + side * r * 0.48 + antTwitch * side
+          const tipY = headY - r * 0.95
 
-        // Right antenna
-        ctx.beginPath()
-        ctx.moveTo(boss.x + r * 0.25, headY - r * 0.4)
-        ctx.quadraticCurveTo(
-          boss.x + r * 0.55,
-          headY - r * 0.95,
-          boss.x + r * 0.65 - antTwitch,
-          headY - r * 1.35
-        )
-        ctx.stroke()
+          ctx.beginPath()
+          ctx.moveTo(startX, startY)
+          ctx.quadraticCurveTo(
+            cx + side * r * 0.35,
+            headY - r * 0.78,
+            tipX,
+            tipY
+          )
+          ctx.stroke()
+
+          ctx.fillStyle = "#facc15"
+          ctx.beginPath()
+          ctx.arc(tipX, tipY, r * 0.075, 0, Math.PI * 2)
+          ctx.fill()
+
+          ctx.strokeStyle = "#a16207"
+          ctx.lineWidth = Math.max(1, r * 0.018)
+          ctx.stroke()
+
+          ctx.strokeStyle = "#21170f"
+          ctx.lineWidth = Math.max(2, r * 0.045)
+        }
+
         ctx.lineCap = "butt"
-
-        // Antenna tip balls (glowing yellow)
-        ctx.fillStyle = "#facc15"
-        ctx.shadowBlur = 12
-        ctx.shadowColor = "#facc15"
-        ctx.beginPath()
-        ctx.arc(boss.x - r * 0.65 + antTwitch, headY - r * 1.35, r * 0.12, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.beginPath()
-        ctx.arc(boss.x + r * 0.65 - antTwitch, headY - r * 1.35, r * 0.12, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.shadowBlur = 0
-
-        // Antenna ball outlines
-        ctx.strokeStyle = "#a16207"
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.arc(boss.x - r * 0.65 + antTwitch, headY - r * 1.35, r * 0.12, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.beginPath()
-        ctx.arc(boss.x + r * 0.65 - antTwitch, headY - r * 1.35, r * 0.12, 0, Math.PI * 2)
-        ctx.stroke()
+        ctx.restore()
+      
       
       
 
@@ -3886,16 +3960,244 @@ ctx.stroke()
         ctx.shadowBlur = 0
       
 
+
+
         // boss Alien Abductor
-      } else if (boss.type === "abductor") {
-        // Draw beam effect (adjusted for red boss)
-        ctx.strokeStyle = "rgba(204, 0, 0, 0.3)"
-        ctx.lineWidth = 20
+        } else if (boss.type === "abductor") {
+        const r = boss.radius
+        const t = bossTime
+        const bx = boss.x
+        const by = boss.y
+        const hover = Math.sin(t / 400) * 6
+        const lightRotation = t / 500
+        const beamPulse = 0.6 + Math.sin(t / 200) * 0.2
+
+        ctx.save()
+        ctx.translate(bx, by + hover)
+
+      
+        // TRACTOR BEAM (going down, behind UFO)
+        
+        ctx.save()
+        ctx.globalCompositeOperation = "lighter"
+
+        const beamGrad = ctx.createLinearGradient(0, 0, 0, r * 4)
+        beamGrad.addColorStop(0, `rgba(0, 255, 200, ${beamPulse * 0.7})`)
+        beamGrad.addColorStop(0.4, `rgba(0, 255, 200, ${beamPulse * 0.35})`)
+        beamGrad.addColorStop(1, "rgba(0, 255, 200, 0.39)")
+
+        ctx.fillStyle = beamGrad
         ctx.beginPath()
-        ctx.moveTo(boss.x, boss.y + boss.radius)
-        ctx.lineTo(boss.x, canvas.height)
+        ctx.moveTo(-r * 0.5, r * 0.3)
+        ctx.lineTo(-r * 2, r * 4)
+        ctx.lineTo(r * 2, r * 4)
+        ctx.lineTo(r * 0.5, r * 0.3)
+        ctx.closePath()
+        ctx.fill()
+
+        // Beam rings (moving down)
+        const ringOffset = (t / 30) % (r * 3.5)
+        for (let i = 0; i < 3; i++) {
+          const ringY = r * 0.5 + ringOffset + i * r * 1.2
+          if (ringY > r * 3.5) continue
+
+          const ringWidth = r * (0.4 + (ringY / (r * 4)) * 1.5)
+          const ringAlpha = 0.6 - (ringY / (r * 4)) * 0.5
+
+          ctx.strokeStyle = `rgba(120, 255, 220, ${ringAlpha})`
+          ctx.lineWidth = 2
+          ctx.beginPath()
+          ctx.ellipse(0, ringY, ringWidth, ringWidth * 0.15, 0, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+
+        ctx.restore()
+
+    
+        // UFO SHADOW (on ground)
+      
+        ctx.fillStyle = "rgba(16, 16, 16, 0.35)"
+        ctx.beginPath()
+        ctx.ellipse(0, r * 1.1, r * 1.1, r * 0.25, 0, 0, Math.PI * 2)
+        ctx.fill()
+
+      
+        // UFO BOTTOM HULL (metallic saucer)
+   
+        const hullGrad = ctx.createLinearGradient(0, -r * 0.2, 0, r * 0.6)
+        hullGrad.addColorStop(0, "#94a3b8")
+        hullGrad.addColorStop(0.4, "#64748b")
+        hullGrad.addColorStop(0.8, "#334155")
+        hullGrad.addColorStop(1, "#1e293b")
+
+        ctx.fillStyle = hullGrad
+        ctx.beginPath()
+        ctx.ellipse(0, r * 0.25, r * 1.3, r * 0.55, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#0f172a"
+        ctx.lineWidth = r * 0.04
         ctx.stroke()
 
+        // Bottom rim (dark)
+        ctx.fillStyle = "#0f172a"
+        ctx.beginPath()
+        ctx.ellipse(0, r * 0.35, r * 1.25, r * 0.45, 0, 0, Math.PI)
+        ctx.fill()
+
+        // Bottom panels (2 darker rings)
+        ctx.strokeStyle = "#1e293b"
+        ctx.lineWidth = r * 0.02
+        for (let i = 1; i <= 2; i++) {
+          ctx.beginPath()
+          ctx.ellipse(0, r * (0.3 + i * 0.1), r * (1.15 - i * 0.08), r * (0.35 - i * 0.05), 0, 0, Math.PI)
+          ctx.stroke()
+        }
+
+   
+        // UFO MIDDLE RIM (lights)
+ 
+        ctx.fillStyle = "#475569"
+        ctx.beginPath()
+        ctx.ellipse(0, r * 0.05, r * 1.35, r * 0.28, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#0f172a"
+        ctx.lineWidth = r * 0.03
+        ctx.stroke()
+
+        // Rotating lights around the rim
+        for (let i = 0; i < 10; i++) {
+          const angle = lightRotation + (i / 10) * Math.PI * 2
+          const lightX = Math.cos(angle) * r * 1.2
+          const lightY = Math.sin(angle) * r * 0.22 + r * 0.05
+
+          // Determine light color (alternating pattern)
+          const colorIndex = Math.floor((lightRotation * 2 + i) % 3)
+          let lightColor = "#00ffff"
+          let glowColor = "#00ffff"
+          if (colorIndex === 1) {
+            lightColor = "#ff00ff"
+            glowColor = "#ff00ff"
+          } else if (colorIndex === 2) {
+            lightColor = "#ffff00"
+            glowColor = "#ffff00"
+          }
+
+          // Only draw lights that are "visible" (front of the ellipse)
+          const isVisible = Math.sin(angle) > -0.5
+
+          if (isVisible) {
+            ctx.shadowBlur = 12
+            ctx.shadowColor = glowColor
+            ctx.fillStyle = lightColor
+            ctx.beginPath()
+            ctx.arc(lightX, lightY, r * 0.08, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.shadowBlur = 0
+
+            // Bright center
+            ctx.fillStyle = "#ffffff"
+            ctx.beginPath()
+            ctx.arc(lightX - r * 0.02, lightY - r * 0.02, r * 0.03, 0, Math.PI * 2)
+            ctx.fill()
+          }
+        }
+
+     
+        // UFO DOME (glass, transparent)
+    
+        const domeGrad = ctx.createLinearGradient(0, -r * 0.9, 0, r * 0.1)
+        domeGrad.addColorStop(0, "rgba(186, 230, 253, 0.85)")
+        domeGrad.addColorStop(0.5, "rgba(125, 211, 252, 0.6)")
+        domeGrad.addColorStop(1, "rgba(56, 189, 248, 0.4)")
+
+        ctx.fillStyle = domeGrad
+        ctx.beginPath()
+        ctx.ellipse(0, -r * 0.15, r * 0.85, r * 0.7, 0, Math.PI, 0)
+        ctx.fill()
+        ctx.strokeStyle = "rgba(14, 165, 233, 0.8)"
+        ctx.lineWidth = r * 0.03
+        ctx.stroke()
+
+        // Dome shine (highlight)
+        ctx.fillStyle = "rgba(255, 255, 255, 0.4)"
+        ctx.beginPath()
+        ctx.ellipse(-r * 0.35, -r * 0.55, r * 0.25, r * 0.15, -0.4, 0, Math.PI * 2)
+        ctx.fill()
+
+      
+        // ALIENS INSIDE THE DOME (2 small pilots)
+       
+        for (const pilotOffset of [-r * 0.3, r * 0.3]) {
+          // Body
+          ctx.fillStyle = "#22c55e"
+          ctx.beginPath()
+          ctx.ellipse(pilotOffset, -r * 0.2, r * 0.12, r * 0.15, 0, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Head
+          ctx.fillStyle = "#4ade80"
+          ctx.beginPath()
+          ctx.arc(pilotOffset, -r * 0.4, r * 0.13, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Big alien eyes (black)
+          ctx.fillStyle = "#000000"
+          ctx.beginPath()
+          ctx.ellipse(pilotOffset - r * 0.05, -r * 0.4, r * 0.04, r * 0.06, -0.3, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.beginPath()
+          ctx.ellipse(pilotOffset + r * 0.05, -r * 0.4, r * 0.04, r * 0.06, 0.3, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Eye shine
+          ctx.fillStyle = "#ffffff"
+          ctx.beginPath()
+          ctx.arc(pilotOffset - r * 0.06, -r * 0.42, r * 0.015, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.beginPath()
+          ctx.arc(pilotOffset + r * 0.04, -r * 0.42, r * 0.015, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
+        
+        // ANTENNA (top)
+    
+        ctx.strokeStyle = "#94a3b8"
+        ctx.lineWidth = r * 0.04
+        ctx.lineCap = "round"
+        ctx.beginPath()
+        ctx.moveTo(0, -r * 0.85)
+        ctx.lineTo(0, -r * 1.2)
+        ctx.stroke()
+        ctx.lineCap = "butt"
+
+        // Antenna ball (glowing red, blinking)
+        const antennaBlink = Math.sin(t / 200) > 0 ? 1 : 0.4
+        ctx.fillStyle = `rgba(255, 50, 50, ${antennaBlink})`
+        ctx.shadowBlur = 15
+        ctx.shadowColor = "#ff0000"
+        ctx.beginPath()
+        ctx.arc(0, -r * 1.25, r * 0.1, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.shadowBlur = 0
+
+        // ENGINE GLOW (bottom, blue thrusters)
+     
+        ctx.save()
+        ctx.globalCompositeOperation = "lighter"
+        const engineGrad = ctx.createRadialGradient(0, r * 0.6, 0, 0, r * 0.6, r * 0.7)
+        engineGrad.addColorStop(0, "rgba(100, 200, 255, 0.9)")
+        engineGrad.addColorStop(0.5, "rgba(100, 200, 255, 0.4)")
+        engineGrad.addColorStop(1, "rgba(100, 200, 255, 0)")
+
+        ctx.fillStyle = engineGrad
+        ctx.beginPath()
+        ctx.ellipse(0, r * 0.65, r * 0.5, r * 0.2, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+
+        ctx.restore()
+      
 
         // boss Queen Xeno Hen
       } else if (boss.type === "queenXenoHen" && boss.buffRadius) {
@@ -3907,6 +4209,9 @@ ctx.stroke()
         ctx.arc(boss.x, boss.y, boss.buffRadius, 0, Math.PI * 2)
         ctx.stroke()
         ctx.setLineDash([])
+
+
+        
       } else if (boss.type === "devourer") {
         // Draw intimidating eyes
         ctx.fillStyle = "#ffff00"
