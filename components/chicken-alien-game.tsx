@@ -4200,18 +4200,394 @@ ctx.stroke()
       
 
         // boss Queen Xeno Hen
-      } else if (boss.type === "queenXenoHen" && boss.buffRadius) {
-        // Draw buff radius (adjusted for red boss)
-        ctx.strokeStyle = "rgba(255, 51, 51, 0.2)"
-        ctx.lineWidth = 2
-        ctx.setLineDash([10, 10])
-        ctx.beginPath()
-        ctx.arc(boss.x, boss.y, boss.buffRadius, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.setLineDash([])
+            } else if (boss.type === "queenXenoHen") {
+        const r = boss.radius
+        const t = bossTime
+        const bx = boss.x
+        const by = boss.y
+        const pulse = 1 + Math.sin(t / 200) * 0.04
+        const wingFlap = Math.sin(t / 80) * 0.15
+        const crownGlow = 0.6 + Math.sin(t / 150) * 0.4
+        const auraPulse = 0.5 + Math.sin(t / 250) * 0.3
 
+        // BUFF AURA (visible radius)
+
+        if (boss.buffRadius) {
+          ctx.save()
+          ctx.globalCompositeOperation = "lighter"
+
+          // Outer glow
+          const auraGrad = ctx.createRadialGradient(
+            bx, by, r * 0.5,
+            bx, by, boss.buffRadius
+          )
+          auraGrad.addColorStop(0, `rgba(255, 50, 50, ${auraPulse * 0.15})`)
+          auraGrad.addColorStop(0.7, `rgba(255, 100, 100, ${auraPulse * 0.08})`)
+          auraGrad.addColorStop(1, "rgba(255, 50, 50, 0)")
+
+          ctx.fillStyle = auraGrad
+          ctx.beginPath()
+          ctx.arc(bx, by, boss.buffRadius, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Dashed border
+          ctx.strokeStyle = `rgba(255, 100, 100, ${auraPulse * 0.6})`
+          ctx.lineWidth = 2
+          ctx.setLineDash([15, 10])
+          ctx.beginPath()
+          ctx.arc(bx, by, boss.buffRadius, 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          ctx.restore()
+        }
 
         
+        // TAIL FEATHERS (behind body, like rooster)
+
+        const tailSway = Math.sin(t / 300) * 0.2
+
+        for (let i = -2; i <= 2; i++) {
+          const featherAngle = Math.PI / 2 + i * 0.25 + tailSway
+          const featherLength = r * (0.9 + Math.abs(i) * 0.1)
+
+          ctx.save()
+          ctx.translate(bx, by + r * 0.4)
+          ctx.rotate(featherAngle)
+
+          // Feather body
+          const featherGrad = ctx.createLinearGradient(0, 0, 0, featherLength)
+          featherGrad.addColorStop(0, "#7c3aed")
+          featherGrad.addColorStop(0.5, "#a855f7")
+          featherGrad.addColorStop(1, "#ec4899")
+
+          ctx.fillStyle = featherGrad
+          ctx.beginPath()
+          ctx.ellipse(0, featherLength * 0.5, r * 0.15, featherLength * 0.5, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.strokeStyle = "#4c1d95"
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+
+          // Feather highlight
+          ctx.strokeStyle = "rgba(255, 200, 255, 0.5)"
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.moveTo(0, featherLength * 0.1)
+          ctx.lineTo(0, featherLength * 0.8)
+          ctx.stroke()
+
+          ctx.restore()
+        }
+
+        
+        // WINGS (spread out, like chicken)
+        
+        for (const side of [-1, 1]) {
+          ctx.save()
+          ctx.translate(bx + side * r * 0.6, by + r * 0.1)
+          ctx.rotate(side * (-0.4 + wingFlap))
+
+          const wingGrad = ctx.createLinearGradient(0, 0, side * r * 1.3, 0)
+          wingGrad.addColorStop(0, "#a855f7")
+          wingGrad.addColorStop(0.5, "#9333ea")
+          wingGrad.addColorStop(1, "#7c3aed")
+
+          ctx.fillStyle = wingGrad
+          ctx.beginPath()
+          ctx.ellipse(side * r * 0.65, 0, r * 0.8, r * 0.45, side * 0.2, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.strokeStyle = "#4c1d95"
+          ctx.lineWidth = 2
+          ctx.stroke()
+
+          // Feather details (3 lines)
+          ctx.strokeStyle = "#d8b4fe"
+          ctx.lineWidth = 1.5
+          for (let i = 0; i < 3; i++) {
+            ctx.beginPath()
+            ctx.moveTo(side * r * 0.2, -r * 0.2 + i * r * 0.2)
+            ctx.quadraticCurveTo(
+              side * r * 0.8,
+              -r * 0.1 + i * r * 0.15,
+              side * r * 1.3,
+              i * r * 0.15
+            )
+            ctx.stroke()
+          }
+
+          ctx.restore()
+        }
+
+        
+        // BODY (big, oval, pulsing)
+        
+        ctx.save()
+        ctx.translate(bx, by)
+        ctx.scale(pulse, pulse)
+
+        const bodyGrad = ctx.createRadialGradient(
+          -r * 0.3, -r * 0.3, r * 0.1,
+          0, 0, r * 1.2
+        )
+        bodyGrad.addColorStop(0, "#fda4af")
+        bodyGrad.addColorStop(0.4, "#f43f5e")
+        bodyGrad.addColorStop(0.75, "#be123c")
+        bodyGrad.addColorStop(1, "#4c0519")
+
+        ctx.fillStyle = bodyGrad
+        ctx.beginPath()
+        ctx.ellipse(0, 0, r * 0.95, r * 1.1, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#4c0519"
+        ctx.lineWidth = r * 0.05
+        ctx.stroke()
+
+        
+        // EGGS IN THE BELLY (visible, glowing)
+        
+        const eggPulse = 1 + Math.sin(t / 400) * 0.08
+
+        for (let i = 0; i < 3; i++) {
+          const eggX = -r * 0.3 + i * r * 0.3
+          const eggY = r * 0.4 + Math.sin(t / 300 + i) * r * 0.05
+
+          // Egg glow
+          ctx.shadowColor = "#fef08a"
+          ctx.shadowBlur = r * 0.15
+
+          // Egg
+          const eggGrad = ctx.createRadialGradient(
+            eggX - r * 0.05, eggY - r * 0.08, r * 0.02,
+            eggX, eggY, r * 0.15
+          )
+          eggGrad.addColorStop(0, "#fff9c4")
+          eggGrad.addColorStop(0.5, "#fef08a")
+          eggGrad.addColorStop(1, "#ca8a04")
+
+          ctx.fillStyle = eggGrad
+          ctx.beginPath()
+          ctx.ellipse(eggX, eggY, r * 0.14 * eggPulse, r * 0.18 * eggPulse, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.shadowBlur = 0
+
+          ctx.strokeStyle = "#a16207"
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+        }
+
+        // Belly highlight
+        ctx.fillStyle = "rgba(255, 200, 200, 0.3)"
+        ctx.beginPath()
+        ctx.ellipse(-r * 0.25, -r * 0.4, r * 0.35, r * 0.5, -0.3, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.restore()
+
+        
+        // LEGS (2, with claws)
+        
+        ctx.strokeStyle = "#7c2d12"
+        ctx.lineWidth = r * 0.1
+        ctx.lineCap = "round"
+
+        for (const side of [-1, 1]) {
+          const legX = bx + side * r * 0.35
+          const legY = by + r * 0.9
+
+          // Upper leg
+          ctx.beginPath()
+          ctx.moveTo(legX, legY)
+          ctx.lineTo(legX + side * r * 0.15, legY + r * 0.3)
+          ctx.stroke()
+
+          // Lower leg
+          ctx.beginPath()
+          ctx.moveTo(legX + side * r * 0.15, legY + r * 0.3)
+          ctx.lineTo(legX + side * r * 0.3, legY + r * 0.5)
+          ctx.stroke()
+
+          // Claws (3 toes)
+          ctx.strokeStyle = "#431407"
+          ctx.lineWidth = r * 0.06
+          for (let i = -1; i <= 1; i++) {
+            ctx.beginPath()
+            ctx.moveTo(legX + side * r * 0.3, legY + r * 0.5)
+            ctx.lineTo(legX + side * r * (0.3 + i * 0.1), legY + r * 0.65)
+            ctx.stroke()
+          }
+          ctx.strokeStyle = "#7c2d12"
+          ctx.lineWidth = r * 0.1
+        }
+        ctx.lineCap = "butt"
+
+        
+        // HEAD (red, chicken-like)
+        
+        const headY = by - r * 0.95
+
+        // Comb (red crest on top, under crown)
+        ctx.fillStyle = "#dc2626"
+        ctx.beginPath()
+        ctx.moveTo(bx - r * 0.35, headY - r * 0.35)
+        ctx.quadraticCurveTo(bx - r * 0.3, headY - r * 0.6, bx - r * 0.15, headY - r * 0.5)
+        ctx.quadraticCurveTo(bx - r * 0.05, headY - r * 0.65, bx + r * 0.05, headY - r * 0.5)
+        ctx.quadraticCurveTo(bx + r * 0.2, headY - r * 0.65, bx + r * 0.25, headY - r * 0.5)
+        ctx.quadraticCurveTo(bx + r * 0.35, headY - r * 0.6, bx + r * 0.35, headY - r * 0.35)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#7f1d1d"
+        ctx.lineWidth = 2
+        ctx.stroke()
+
+        // Head (main)
+        const headGrad = ctx.createRadialGradient(
+          bx - r * 0.15, headY - r * 0.15, r * 0.05,
+          bx, headY, r * 0.6
+        )
+        headGrad.addColorStop(0, "#fca5a5")
+        headGrad.addColorStop(0.5, "#dc2626")
+        headGrad.addColorStop(1, "#7f1d1d")
+
+        ctx.fillStyle = headGrad
+        ctx.beginPath()
+        ctx.ellipse(bx, headY, r * 0.55, r * 0.5, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#4c0519"
+        ctx.lineWidth = r * 0.04
+        ctx.stroke()
+
+        
+        // CROWN (golden, on top)
+        
+        const crownY = headY - r * 0.55
+
+        ctx.save()
+        ctx.shadowColor = "#fbbf24"
+        ctx.shadowBlur = 15 * crownGlow
+
+        // Crown base
+        ctx.fillStyle = "#fbbf24"
+        ctx.beginPath()
+        ctx.moveTo(bx - r * 0.4, crownY)
+        ctx.lineTo(bx + r * 0.4, crownY)
+        ctx.lineTo(bx + r * 0.35, crownY - r * 0.15)
+        ctx.lineTo(bx - r * 0.35, crownY - r * 0.15)
+        ctx.closePath()
+        ctx.fill()
+
+        // 3 crown points
+        for (let i = -1; i <= 1; i++) {
+          const px = bx + i * r * 0.25
+
+          ctx.fillStyle = "#fbbf24"
+          ctx.beginPath()
+          ctx.moveTo(px - r * 0.1, crownY - r * 0.15)
+          ctx.lineTo(px, crownY - r * 0.45)
+          ctx.lineTo(px + r * 0.1, crownY - r * 0.15)
+          ctx.closePath()
+          ctx.fill()
+
+          // Jewel on each point
+          ctx.fillStyle = i === 0 ? "#ef4444" : "#3b82f6"
+          ctx.beginPath()
+          ctx.arc(px, crownY - r * 0.28, r * 0.06, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
+        // Crown outline
+        ctx.strokeStyle = "#a16207"
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.moveTo(bx - r * 0.4, crownY)
+        ctx.lineTo(bx - r * 0.1, crownY - r * 0.45)
+        ctx.lineTo(bx, crownY - r * 0.45)
+        ctx.lineTo(bx + r * 0.1, crownY - r * 0.45)
+        ctx.lineTo(bx + r * 0.4, crownY)
+        ctx.stroke()
+
+        ctx.restore()
+
+        
+        // EYES (big, yellow, glowing)
+        
+        for (const side of [-1, 1]) {
+          const eyeX = bx + side * r * 0.22
+          const eyeY = headY - r * 0.05
+
+          // Socket
+          ctx.fillStyle = "#170524"
+          ctx.beginPath()
+          ctx.ellipse(eyeX, eyeY, r * 0.18, r * 0.22, 0, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Eye glow
+          ctx.shadowColor = "#fbbf24"
+          ctx.shadowBlur = 10
+          const eyeGrad = ctx.createRadialGradient(
+            eyeX - r * 0.03, eyeY - r * 0.03, r * 0.02,
+            eyeX, eyeY, r * 0.15
+          )
+          eyeGrad.addColorStop(0, "#ffffff")
+          eyeGrad.addColorStop(0.3, "#fef08a")
+          eyeGrad.addColorStop(0.7, "#eab308")
+          eyeGrad.addColorStop(1, "#713f12")
+
+          ctx.fillStyle = eyeGrad
+          ctx.beginPath()
+          ctx.ellipse(eyeX, eyeY, r * 0.14, r * 0.18, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.shadowBlur = 0
+
+          // Pupil (vertical slit — predator)
+          ctx.fillStyle = "#000000"
+          ctx.beginPath()
+          ctx.ellipse(eyeX, eyeY, r * 0.03, r * 0.12, 0, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Reflection
+          ctx.fillStyle = "#ffffff"
+          ctx.beginPath()
+          ctx.arc(eyeX - side * r * 0.05, eyeY - r * 0.06, r * 0.025, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
+        
+        // BEAK (sharp, orange)
+        
+        ctx.fillStyle = "#ea580c"
+        ctx.beginPath()
+        ctx.moveTo(bx - r * 0.12, headY + r * 0.2)
+        ctx.lineTo(bx, headY + r * 0.38)
+        ctx.lineTo(bx + r * 0.12, headY + r * 0.2)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#7c2d12"
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+
+        // Beak highlight
+        ctx.strokeStyle = "#fed7aa"
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(bx - r * 0.04, headY + r * 0.24)
+        ctx.lineTo(bx, headY + r * 0.32)
+        ctx.stroke()
+
+        
+        // WATTLE (red thing below beak)
+        
+        ctx.fillStyle = "#dc2626"
+        ctx.beginPath()
+        ctx.ellipse(bx, headY + r * 0.45, r * 0.1, r * 0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = "#7f1d1d"
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+      
+      
+
+        // boss Devourer
       } else if (boss.type === "devourer") {
         // Draw intimidating eyes
         ctx.fillStyle = "#ffff00"
