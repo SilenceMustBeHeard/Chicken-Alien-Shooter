@@ -1971,10 +1971,11 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       setFinalWave(waveRef.current)
     }
 
-    // Update projectiles and check enemy collision
+       // Update projectiles and check enemy collision
     projectilesRef.current = projectilesRef.current.filter((proj) => {
-      if (proj.dead) return false // Skip if marked for removal
+      if (proj.dead) return false
 
+      // Move projectile (ONCE, for both player and enemy)
       proj.x += proj.vx
       proj.y += proj.vy
 
@@ -1983,22 +1984,46 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         return false
       }
 
-      // Check projectile hits on boss first
+      //  ENEMY PROJECTILE: only hits player 
+      if (proj.isEnemyProjectile) {
+        const dxp = proj.x - player.x
+        const dyp = proj.y - player.y
+        const distp = Math.sqrt(dxp * dxp + dyp * dyp)
+
+        if (distp < proj.radius + player.radius) {
+          if (!player.shield && player.invincibleTime <= 0) {
+            player.health -= proj.damage
+            player.invincibleTime = 30
+            chickenHitSound()
+            addScreenShake(6)
+            addFloatingText(player.x, player.y - 30, `-${proj.damage}`, "#ff4444", 18)
+            createParticles(proj.x, proj.y, proj.color || "#28f0ff")
+
+            if (player.health <= 0) {
+              chickenDeathSound()
+              gameStateRef.current = "gameOver"
+              setGameState("gameOver")
+              setFinalScore(scoreRef.current)
+              setFinalKillCount(killCountRef.current)
+              setFinalWave(waveRef.current)
+            }
+          }
+          return false // projectile consumed
+        }
+
+        return true // keep flying
+      }
+
+      //  PLAYER PROJECTILE: check boss 
       const boss = bossRef.current
       if (boss) {
-             
         const bdx = proj.x - boss.x
         const bdy = proj.y - boss.y
         const bdist = Math.sqrt(bdx * bdx + bdy * bdy)
-   
-        
+
         const bossHit = proj.explosive && proj.explosionRadius
           ? bdist < proj.explosionRadius + boss.radius
           : bdist < proj.radius + boss.radius
-     
-
-
-
 
         if (bossHit) {
           boss.health -= proj.damage
@@ -2008,7 +2033,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           addScreenShake(4)
 
           if (proj.explosive) {
-          createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+            createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
             playSound(150, 0.2, "sawtooth")
             addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
           }
@@ -2022,7 +2047,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             createParticles(boss.x, boss.y, "#ff0000")
             addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
             addScreenShake(15)
-            // Drop 3 power-ups
             for (let p = 0; p < 3; p++) {
               spawnWeaponPowerUp(boss.x + (Math.random() - 0.5) * 80, boss.y + (Math.random() - 0.5) * 80)
             }
@@ -2037,8 +2061,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         }
       }
 
-      // Check projectile hits on enemies
-     
+      //  PLAYER PROJECTILE: check enemies 
       const enemiesToDamage: Enemy[] = []
 
       for (let i = 0; i < enemiesRef.current.length; i++) {
@@ -2053,7 +2076,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           }
         } else if (dist < proj.radius + enemy.radius) {
           enemiesToDamage.push(enemy)
-         
           break
         }
       }
@@ -2066,7 +2088,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           enemy.hitFlash = 5
 
           eggSplashSound()
-        createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+          createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
           addFloatingText(enemy.x, enemy.y - 20, `-${damage}`, "#ff9999", 16)
 
           if (!proj.piercing) {
@@ -2109,16 +2131,16 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         })
 
         if (proj.explosive) {
-        createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+          createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
           playSound(150, 0.2, "sawtooth")
           addScreenShake(6)
           addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
         }
 
-        return proj.piercing && !proj.explosive // Remove if not piercing and not explosive
+        return proj.piercing && !proj.explosive
       }
 
-      return true // Keep projectile if it didn't hit anything
+      return true
     })
 
     // Check collisions between player and power-ups
@@ -5037,7 +5059,65 @@ ctx.stroke()
       ctx.fillText(`${bossNames[boss.type]} - ${Math.ceil(boss.health)}/${boss.maxHealth}`, canvas.width / 2, barY - 10)
     }
 
-    projectilesRef.current.forEach((proj) => {
+      projectilesRef.current.forEach((proj) => {
+      //  ENEMY PROJECTILE 
+      if (proj.isEnemyProjectile) {
+        // Outer glow
+        ctx.save()
+        ctx.shadowColor = proj.color || "#28f0ff"
+        ctx.shadowBlur = 20
+
+        // Egg body
+        const eggGrad = ctx.createRadialGradient(
+          proj.x - proj.radius * 0.35,
+          proj.y - proj.radius * 0.4,
+          proj.radius * 0.1,
+          proj.x,
+          proj.y,
+          proj.radius * 1.3
+        )
+        eggGrad.addColorStop(0, "#fff2f2")
+        eggGrad.addColorStop(0.3, "#ff8b8b")
+        eggGrad.addColorStop(0.7, "#ed0a0a")
+        eggGrad.addColorStop(1, "#df0f0f")
+
+        ctx.fillStyle = eggGrad
+        ctx.beginPath()
+        ctx.ellipse(proj.x, proj.y, proj.radius, proj.radius * 1.3, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+
+        // Bright outline
+        ctx.strokeStyle = "#fdf908"
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(proj.x, proj.y, proj.radius, proj.radius * 1.3, 0, 0, Math.PI * 2)
+        ctx.stroke()
+
+        // Crack detail (bio-hint)
+        ctx.strokeStyle = "rgba(255, 246, 246, 0.7)"
+        ctx.lineWidth = 1.2
+        ctx.beginPath()
+        ctx.moveTo(proj.x - proj.radius * 0.35, proj.y - proj.radius * 0.4)
+        ctx.lineTo(proj.x - proj.radius * 0.05, proj.y)
+        ctx.lineTo(proj.x - proj.radius * 0.25, proj.y + proj.radius * 0.5)
+        ctx.stroke()
+
+        // Trailing glow
+        ctx.fillStyle = "rgba(221, 27, 27, 0.87)"
+        ctx.beginPath()
+        ctx.arc(
+          proj.x - proj.vx * 2,
+          proj.y - proj.vy * 2,
+          proj.radius * 0.9,
+          0, Math.PI * 2
+        )
+        ctx.fill()
+
+        return 
+      }
+
+      //  PLAYER PROJECTILES (existing) 
       if (proj.explosive) {
         // Explosive egg (red-orange)
         ctx.fillStyle = "#ff6600"
@@ -5077,7 +5157,6 @@ ctx.stroke()
         ctx.fill()
       }
     })
-
     floatingTextsRef.current.forEach((text) => {
       ctx.globalAlpha = text.life / 60
       ctx.font = `bold ${text.fontSize}px Arial` // Use fontSize
