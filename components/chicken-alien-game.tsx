@@ -1427,8 +1427,8 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             // Clamp to canvas bounds
             boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
             boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
-            
-            // ─── HEAL MOBS (every 1s, +2 HP each) ───
+
+            //  HEAL MOBS (every 1s, +2 HP each) 
             if (boss.spawnTimer === undefined) boss.spawnTimer = 0
             boss.spawnTimer += deltaTime
 
@@ -1457,7 +1457,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
                 createParticles(boss.x, boss.y, "#28f0ff")
               }
             }
-            // ─── SHOOT 3 PROJECTILES (every 1.5s) ───
+            //  SHOOT 3 PROJECTILES (every 1.5s) 
             if (boss.shootTimer === undefined) boss.shootTimer = 0
             boss.shootTimer += deltaTime
 
@@ -1483,7 +1483,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
               playSound(400, 0.15, "triangle")
             }
 
-            // ─── CONTACT DAMAGE ───
+            //  CONTACT DAMAGE 
             const dxp = player.x - boss.x
             const dyp = player.y - boss.y
             const distp = Math.sqrt(dxp * dxp + dyp * dyp)
@@ -4388,9 +4388,7 @@ ctx.stroke()
         // Outer save — protects everything after from leaking state
         ctx.save()
 
-        // =====================================================
         // BIO-MUTATED XENO-HEN QUEEN
-        // =====================================================
 
         // BIOLOGICAL BUFF FIELD
         if (boss.buffRadius) {
@@ -4567,9 +4565,8 @@ ctx.stroke()
 
         ctx.restore()
 
-        // =====================================================
         // BODY — fleshy bio-mutated queen (NOT roasted chicken)
-        // =====================================================
+        
         ctx.save()
         ctx.translate(bx, cy)
         ctx.scale(pulse, pulse)
@@ -4827,9 +4824,7 @@ ctx.stroke()
           ctx.stroke()
         }
 
-        // =====================================================
-        // ORBITING BIO-EGGS (they now rotate around the queen)
-        // =====================================================
+        // ORBITING EGGS 
         for (let i = 0; i < eggCount; i++) {
           const eggAngle = orbitSpeed + (i / eggCount) * Math.PI * 2
           // Elliptical orbit (flattened, so eggs pass in front/behind visually)
