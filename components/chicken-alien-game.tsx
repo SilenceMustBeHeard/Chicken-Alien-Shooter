@@ -85,6 +85,7 @@ type Boss = GameObject & {
   buffRadius?: number
   shootTimer?: number
   phase?: number
+  chargeDirection?: { x: number; y: number }
 }
 
 type FlyingSaucer = GameObject & {
@@ -701,7 +702,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
    const spawnBoss = (canvas: HTMLCanvasElement) => {
     const bossTypes: Boss["type"][] = [
-      "alienMouse",
+        "alienMouse",
       "alienBumblebee",
       "alienOctopus",
       "alienMantis",
@@ -815,7 +816,12 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       maxHealth: health,
       type,
       speed,
-      spawnTimer: type === "abductor" || type === "theHive" || type === "plagueBringer" ? 0 : undefined,
+      spawnTimer: 
+         type === "abductor" 
+      || type === "theHive" 
+      || type === "plagueBringer" 
+      || type === "queenXenoHen" 
+      || type === "devourer" ? 0 : undefined,
       buffRadius: type === "queenXenoHen" ? 150 : undefined,
      shootTimer: type === "queenXenoHen" ? 0 : undefined, 
       phase: 1,
@@ -1508,45 +1514,89 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             }
           }
           break
-              case "devourer":
-          // Slowly chase player
-          const dx = player.x - boss.x
-          const dy = player.y - boss.y
-          const dist = Math.sqrt(dx * dx + dy * dy)
 
-          if (dist > 0) {
-            boss.x += (dx / dist) * boss.speed
-            boss.y += (dy / dist) * boss.speed
-          }
 
-          // Phase changes based on health
-          const healthPercent = boss.health / boss.maxHealth
-          if (healthPercent < 0.33) {
-            boss.phase = 3
-            boss.speed = 0.4
-          } else if (healthPercent < 0.66) {
-            boss.phase = 2
-            boss.speed = 0.32
-          }
+                            case "devourer":
+          {
+            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
+            boss.spawnTimer += deltaTime
 
-          // Contact damage
-          if (dist < player.radius + boss.radius) {
-            if (!player.shield) {
-              player.health -= 2
-              chickenHitSound()
-              if (player.health <= 0) {
-                chickenDeathSound()
-                gameStateRef.current = "gameOver"
-                setGameState("gameOver")
-                setFinalScore(scoreRef.current)
-                setFinalKillCount(killCountRef.current)
-                setFinalWave(waveRef.current)
+            const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
+            const distToPlayer = Math.sqrt(
+              (player.x - boss.x) ** 2 + (player.y - boss.y) ** 2
+            )
+
+            //  ENRAGE (3 tiers, ordered correctly) ───
+            const healthPercent = boss.health / boss.maxHealth
+            let enrageMultiplier = 1
+            if (healthPercent < 0.33) {
+              enrageMultiplier = 1.5     // critical
+            } else if (healthPercent < 0.50) {
+              enrageMultiplier = 1.30    // medium
+            } else if (healthPercent < 0.70) {
+              enrageMultiplier = 1.15    // light
+            }
+
+            // CHOMP DASH CYCLE (3.8s) 
+            const cycleTime = 3800
+            const cyclePhase = boss.spawnTimer % cycleTime
+
+            if (cyclePhase < 2000) {
+              // Chase
+              boss.x += Math.cos(angle) * boss.speed * enrageMultiplier
+              boss.y += Math.sin(angle) * boss.speed * enrageMultiplier
+            } else if (cyclePhase < 2700) {
+              // Windup — lock direction at start
+              boss.x += (Math.random() - 0.5) * 4
+              boss.y += (Math.random() - 0.5) * 4
+              if (cyclePhase < 2050) {
+                boss.chargeDirection = { x: Math.cos(angle), y: Math.sin(angle) }
+              }
+            } else if (cyclePhase < 3300) {
+              // Dash — fixed direction
+              if (boss.chargeDirection) {
+                boss.x += boss.chargeDirection.x * boss.speed * 1.5 * enrageMultiplier
+                boss.y += boss.chargeDirection.y * boss.speed * 1.5 * enrageMultiplier
+              }
+            } else {
+              // Recover
+              boss.x += Math.cos(angle) * boss.speed * 0.3 * enrageMultiplier
+              boss.y += Math.sin(angle) * boss.speed * 0.3 * enrageMultiplier
+              if (cyclePhase > 3700) {
+                boss.chargeDirection = undefined
+              }
+            }
+
+            //  CONTACT DAMAGE 
+            if (distToPlayer < player.radius + boss.radius * 0.9) {
+              if (player.invincibleTime <= 0 && !player.shield) {
+                const isDashing = cyclePhase >= 2700 && cyclePhase < 3300
+                const damage = isDashing ? 30 : 12
+
+                player.health -= damage
+                player.invincibleTime = 60
+                chickenHitSound()
+                addScreenShake(isDashing ? 15 : 8)
+                addFloatingText(player.x, player.y - 30, `-${damage}`, "#ff0000", 20)
+
+                const pushAngle = Math.atan2(player.y - boss.y, player.x - boss.x)
+                player.x += Math.cos(pushAngle) * 30
+                player.y += Math.sin(pushAngle) * 30
+
+                if (player.health <= 0) {
+                  chickenDeathSound()
+                  gameStateRef.current = "gameOver"
+                  setGameState("gameOver")
+                  setFinalScore(scoreRef.current)
+                  setFinalKillCount(killCountRef.current)
+                  setFinalWave(waveRef.current)
+                }
               }
             }
           }
           break
 
-        // ─── LATE GAME BOSSES ───
+        //  LATE GAME BOSSES 
 
         case "theButcher":
           {
@@ -4405,7 +4455,7 @@ ctx.stroke()
         // Orbit setup for eggs
         const orbitRadius = r * 1.35
         const orbitSpeed = t / 1200
-        const eggCount = 3
+        const eggCount = 5
 
         // Outer save — protects everything after from leaking state
         ctx.save()
@@ -4421,13 +4471,13 @@ ctx.stroke()
             bx, cy, r * 0.55,
             bx, cy, boss.buffRadius
           )
-          aura.addColorStop(0, `rgba(170, 45, 255, ${auraPulse * 0.12})`)
-          aura.addColorStop(0.65, `rgba(65, 210, 255, ${auraPulse * 0.07})`)
-          aura.addColorStop(1, "rgba(65, 210, 255, 0)")
+          aura.addColorStop(0, `rgba(170, 45, 255, ${auraPulse * 0.2})`)
+          aura.addColorStop(0.65, `rgba(65, 210, 255, ${auraPulse * 0.1})`)
+          aura.addColorStop(1, "rgba(65, 211, 255, 0.62)")
 
           ctx.fillStyle = aura
           ctx.beginPath()
-          ctx.arc(bx, cy, boss.buffRadius, 0, Math.PI * 2)
+          ctx.arc(bx, cy, boss.buffRadius, 0, Math.PI * 10)
           ctx.fill()
 
           ctx.strokeStyle = `rgba(110, 230, 255, ${auraPulse * 0.5})`
@@ -4550,7 +4600,7 @@ ctx.stroke()
             const footX = kneeX + side * r * 0.12 + swing
             const footY = cy + r * (0.9 + i * 0.035)
 
-            ctx.strokeStyle = "#21152f"
+            ctx.strokeStyle = "#811af86b"
             ctx.lineWidth = r * 0.075
             ctx.beginPath()
             ctx.moveTo(anchorX, anchorY)
@@ -4761,7 +4811,7 @@ ctx.stroke()
           ctx.ellipse(eyeX, eyeY, r * 0.12, r * 0.078, side * -0.22, 0, Math.PI * 2)
           ctx.fill()
 
-          ctx.fillStyle = "#06121f"
+          ctx.fillStyle = "#0478f388"
           ctx.beginPath()
           ctx.ellipse(eyeX, eyeY, r * 0.022, r * 0.064, 0, 0, Math.PI * 2)
           ctx.fill()
@@ -4902,20 +4952,359 @@ ctx.stroke()
       
 
         // boss Devourer
-      } else if (boss.type === "devourer") {
-        // Draw intimidating eyes
-        ctx.fillStyle = "#ffff00"
+
+            } else if (boss.type === "devourer") {
+        const r = boss.radius
+        const t = bossTime
+        const bx = boss.x
+        const by = boss.y
+
+        const angleToPlayer = playerRef.current
+          ? Math.atan2(playerRef.current.y - by, playerRef.current.x - bx)
+          : 0
+
+        const cyclePhase = (boss.spawnTimer || 0) % 3800
+        const isDashing = cyclePhase >= 2700 && cyclePhase < 3300
+        const isWindup = cyclePhase >= 2000 && cyclePhase < 2700
+
+        // Mouth opens wider during dash
+        const baseMouth = Math.sin(t / 200) * 0.25 + 0.55
+        const mouthAngle = isDashing
+          ? 1.15
+          : isWindup
+            ? baseMouth * 0.4 + 0.75
+            : baseMouth
+
+        const pulse = 1 + Math.sin(t / 250) * 0.05
+        const angerGlow = isDashing ? 1 : isWindup ? 0.6 : 0.3
+
+        // Aura
+        ctx.save()
+        ctx.globalCompositeOperation = "lighter"
+        const aura = ctx.createRadialGradient(bx, by, r * 0.4, bx, by, r * 2.4)
+        aura.addColorStop(0, `rgba(220, 38, 38, ${0.15 + angerGlow * 0.2})`)
+        aura.addColorStop(0.5, `rgba(153, 27, 27, ${0.08 + angerGlow * 0.1})`)
+        aura.addColorStop(1, "rgba(255, 2, 2, 0.59)")
+        ctx.fillStyle = aura
         ctx.beginPath()
-        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
-        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
+        ctx.arc(bx, by, r * 2.4, 0, Math.PI * 4)
         ctx.fill()
 
+        // Floating embers
+        for (let i = 0; i < 6; i++) {
+          const pa = t / 800 + (i / 6) * Math.PI * 2
+          const pd = r * (1.2 + Math.sin(t / 300 + i) * 0.3)
+          const px = bx + Math.cos(pa) * pd
+          const py = by + Math.sin(pa) * pd * 0.7
+          ctx.fillStyle = `rgba(239, 68, 68, ${0.4 + Math.sin(t / 100 + i) * 0.3})`
+          ctx.beginPath()
+          ctx.arc(px, py, r * 0.04, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.restore()
+
+        // AMORPHOUS FLESH BODY
+        
+        ctx.save()
+        ctx.translate(bx, by)
+        ctx.rotate(angleToPlayer)
+        ctx.scale(pulse, pulse)
+
+        // Deforming wobble over time — this is the "deformed" part
+        const wobble1 = Math.sin(t / 380) * r * 0.06
+        const wobble2 = Math.cos(t / 290) * r * 0.07
+        const wobble3 = Math.sin(t / 450 + 1) * r * 0.05
+        const wobble4 = Math.cos(t / 320 + 2) * r * 0.06
+
+        // Build an irregular organic silhouette
+        // Base: an ellipse that bulges outward at random angles
+        const points = 16  // more points = smoother blob
+        const bodyRadiusBase = r * 0.98
+
+        ctx.beginPath()
+        for (let i = 0; i <= points; i++) {
+          const a = (i / points) * Math.PI * 2
+
+          // Organic radius per angle (fleshy bulges)
+          const bulge =
+            Math.sin(a * 3 + t / 700) * r * 0.06 +
+            Math.sin(a * 5 - t / 500) * r * 0.04 +
+            Math.cos(a * 7 + t / 900) * r * 0.03
+
+          const rad = bodyRadiusBase + bulge
+
+          // Apply wobble to specific spots (top, bottom, sides)
+          const wobbleX =
+            a < Math.PI / 2 ? wobble1 * Math.sin(a) :
+            a < Math.PI ? wobble2 * Math.sin(a) :
+            a < 1.5 * Math.PI ? wobble3 * Math.sin(a) :
+            wobble4 * Math.sin(a)
+
+          const px = Math.cos(a) * rad + (a > Math.PI ? wobbleX * 0.5 : 0)
+          const py = Math.sin(a) * rad + (a > Math.PI ? 0 : wobbleX * 0.5)
+
+          if (i === 0) ctx.moveTo(px, py)
+          else ctx.lineTo(px, py)
+        }
+        ctx.closePath()
+
+        // Flesh gradient
+        const flesh = ctx.createRadialGradient(
+          -r * 0.3, -r * 0.35, r * 0.08,
+          0, 0, r * 1.2
+        )
+        flesh.addColorStop(0, "#fb4949")
+        flesh.addColorStop(0.3, "#b91c1c")
+        flesh.addColorStop(0.7, "#641010")
+        flesh.addColorStop(1, "#ba4646")
+
+        ctx.fillStyle = flesh
+        ctx.fill()
+        ctx.strokeStyle = "#310606"
+        ctx.lineWidth = r * 0.05
+        ctx.stroke()
+
+        // TATTERED FLESH EDGES (small tendrils around)
+        
+        ctx.strokeStyle = "#f80101"
+        ctx.lineWidth = r * 0.04
+        ctx.lineCap = "round"
+
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + t / 3000
+          const startR = r * 0.92
+          const endR = r * (1.05 + Math.sin(t / 200 + i) * 0.08)
+
+          const sx = Math.cos(a) * startR
+          const sy = Math.sin(a) * startR
+          const ex = Math.cos(a + Math.sin(t / 400 + i) * 0.1) * endR
+          const ey = Math.sin(a + Math.cos(t / 400 + i) * 0.1) * endR
+
+          ctx.beginPath()
+          ctx.moveTo(sx, sy)
+          ctx.quadraticCurveTo(
+            (sx + ex) / 2 + Math.cos(a + 0.5) * r * 0.05,
+            (sy + ey) / 2 + Math.sin(a + 0.5) * r * 0.05,
+            ex,
+            ey
+          )
+          ctx.stroke()
+        }
+
+        ctx.lineCap = "butt"
+
+        
+        // FLESH VEINS (glowing cracks, pulsing)
+        ctx.strokeStyle = `rgba(255, 65, 65, ${0.25 + angerGlow * 0.35})`
+        ctx.lineWidth = r * 0.018
+
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2 + 0.3
+          ctx.beginPath()
+          ctx.moveTo(Math.cos(a) * r * 0.3, Math.sin(a) * r * 0.3)
+          ctx.quadraticCurveTo(
+            Math.cos(a + 0.2) * r * 0.55,
+            Math.sin(a + 0.2) * r * 0.55,
+            Math.cos(a - 0.1) * r * 0.85,
+            Math.sin(a - 0.1) * r * 0.85
+          )
+          ctx.stroke()
+        }
+
+        // MAW — torn, jagged mouth 
+        // Mouth opens toward +X (since we rotated by angleToPlayer)
+        const mawOpen = mouthAngle
+
+        // Mouth interior — jagged torn shape
+        const mawGrad = ctx.createRadialGradient(r * 0.4, 0, r * 0.1, r * 0.5, 0, r * 0.95)
+        mawGrad.addColorStop(0, "#000000")
+        mawGrad.addColorStop(0.6, "#0a0000")
+        mawGrad.addColorStop(1, "#2a0303")
+
+        ctx.fillStyle = mawGrad
+        ctx.beginPath()
+
+        // Upper jaw — torn, jagged
+        ctx.moveTo(r * 0.05, -r * 0.25)
+        ctx.lineTo(r * 0.2, -mawOpen * r * 0.5)
+        ctx.lineTo(r * 0.35, -mawOpen * r * 0.55 + Math.sin(t / 150) * r * 0.03)
+        ctx.lineTo(r * 0.5, -mawOpen * r * 0.68)
+        ctx.lineTo(r * 0.65, -mawOpen * r * 0.58)
+        ctx.lineTo(r * 0.8, -mawOpen * r * 0.75)
+        ctx.lineTo(r * 0.95, -mawOpen * r * 0.5)
+
+        // Tip of mouth
+        ctx.lineTo(r * 1.08, 0)
+
+        // Lower jaw — torn, jagged
+
+        ctx.lineTo(r * 0.95, mawOpen * r * 0.5)
+        ctx.lineTo(r * 0.8, mawOpen * r * 0.75)
+        ctx.lineTo(r * 0.65, mawOpen * r * 0.58)
+        ctx.lineTo(r * 0.5, mawOpen * r * 0.68)
+        ctx.lineTo(r * 0.35, mawOpen * r * 0.55 + Math.cos(t / 150) * r * 0.03)
+        ctx.lineTo(r * 0.2, mawOpen * r * 0.5)
+        ctx.lineTo(r * 0.05, r * 0.25)
+
+        ctx.closePath()
+        ctx.fill()
+
+        // Deep throat (pit)
         ctx.fillStyle = "#000000"
         ctx.beginPath()
-        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
-        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
+        ctx.ellipse(r * 0.55, 0, r * 0.28, mawOpen * r * 0.35, 0, 0, Math.PI * 2)
         ctx.fill()
+
+        // TEETH — jagged, protruding in BOTH directions
+        const teethCount = 8
+
+        for (let i = 0; i < teethCount; i++) {
+          const u = (i + 0.5) / teethCount
+          const xPos = r * (0.15 + u * 0.85)
+
+          // Upper teeth — point INTO the mouth (down)
+          const upperY = -mawOpen * r * (0.45 + 0.15 * Math.sin(u * Math.PI))
+          const upperToothLen = r * (0.1 + (i % 3) * 0.03)
+          const upperTipY = upperY + upperToothLen
+
+          ctx.fillStyle = i % 2 === 0 ? "#fff1cf" : "#d6c5a4"
+          ctx.strokeStyle = "#6b2118"
+          ctx.lineWidth = Math.max(1, r * 0.012)
+
+          ctx.beginPath()
+          ctx.moveTo(xPos - r * 0.05, upperY)
+          ctx.lineTo(xPos + r * 0.05, upperY)
+          ctx.lineTo(xPos + r * 0.015, upperTipY)
+          ctx.closePath()
+          ctx.fill()
+          ctx.stroke()
+
+          // Lower teeth — point INTO the mouth (up)
+          const lowerY = mawOpen * r * (0.45 + 0.15 * Math.sin(u * Math.PI))
+          const lowerToothLen = r * (0.1 + ((i + 1) % 3) * 0.03)
+          const lowerTipY = lowerY - lowerToothLen
+
+          ctx.beginPath()
+          ctx.moveTo(xPos - r * 0.05, lowerY)
+          ctx.lineTo(xPos + r * 0.05, lowerY)
+          ctx.lineTo(xPos + r * 0.015, lowerTipY)
+          ctx.closePath()
+          ctx.fill()
+          ctx.stroke()
+        }
+
+        // SUNKEN EYES (fleshy sockets)
+
+        for (const side of [-1, 1]) {
+          const ex = -r * 0.25
+          const ey = side * r * 0.35 + Math.sin(t / 400 + side) * r * 0.02
+
+          // Sunken flesh socket (dark, deep)
+          const socketGrad = ctx.createRadialGradient(
+            ex - r * 0.03, ey - side * r * 0.03, r * 0.02,
+            ex, ey, r * 0.24
+          )
+          socketGrad.addColorStop(0, "#2a0303")
+          socketGrad.addColorStop(1, "#0a0000")
+
+          ctx.fillStyle = socketGrad
+          ctx.beginPath()
+          ctx.ellipse(ex, ey, r * 0.22, r * 0.26, 0, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Glowing iris (vertical slit, predator style)
+
+          ctx.shadowColor = "#facc15"
+          ctx.shadowBlur = 10 + angerGlow * 15
+
+          const eyeGrad = ctx.createRadialGradient(
+            ex - r * 0.04, ey - side * r * 0.04, r * 0.01,
+            ex, ey, r * 0.16
+          )
+          eyeGrad.addColorStop(0, "#fff7ae")
+          eyeGrad.addColorStop(0.45, "#facc15")
+          eyeGrad.addColorStop(0.85, "#a16207")
+          eyeGrad.addColorStop(1, "#713f12")
+
+          ctx.fillStyle = eyeGrad
+          ctx.beginPath()
+          ctx.ellipse(ex, ey, r * 0.15, r * 0.18, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.shadowBlur = 0
+
+          // Vertical slit pupil
+          ctx.fillStyle = "#160101"
+          ctx.beginPath()
+          ctx.ellipse(ex + r * 0.02, ey, r * 0.04, r * 0.13, 0, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Reflection
+          ctx.fillStyle = "#ffffff"
+          ctx.beginPath()
+          ctx.arc(ex - r * 0.05, ey - side * r * 0.06, r * 0.03, 0, Math.PI * 2)
+          ctx.fill()
+
+          // fleshy ridge above eye
+
+          ctx.strokeStyle = "#540303d4"
+          ctx.lineWidth = r * 0.06
+          ctx.lineCap = "round"
+          ctx.beginPath()
+          ctx.moveTo(ex - r * 0.2, ey - side * r * 0.25)
+          ctx.quadraticCurveTo(
+            ex, ey - side * r * 0.32,
+            ex + r * 0.18, ey - side * r * 0.22
+          )
+          ctx.stroke()
+          ctx.lineCap = "butt"
+        }
+
+        
+        // CROWN SPIKES (fleshy horns on top)
+
+        for (let i = 0; i < 3; i++) {
+          const a = -Math.PI / 2 + (i - 1) * 0.4
+          const baseX = Math.cos(a) * r * 0.7
+          const baseY = Math.sin(a) * r * 0.7
+          const tipX = Math.cos(a) * r * (1.05 + Math.sin(t / 300 + i) * 0.05)
+          const tipY = Math.sin(a) * r * (1.05 + Math.sin(t / 300 + i) * 0.05)
+
+          const hornGrad = ctx.createLinearGradient(baseX, baseY, tipX, tipY)
+          hornGrad.addColorStop(0, "#b91c1c")
+          hornGrad.addColorStop(1, "#a20101a2")
+
+          ctx.fillStyle = hornGrad
+          ctx.beginPath()
+          ctx.moveTo(baseX - Math.sin(a) * r * 0.08, baseY + Math.cos(a) * r * 0.08)
+          ctx.lineTo(tipX, tipY)
+          ctx.lineTo(baseX + Math.sin(a) * r * 0.08, baseY - Math.cos(a) * r * 0.08)
+          ctx.closePath()
+          ctx.fill()
+          ctx.strokeStyle = "#e01717a6"
+          ctx.lineWidth = r * 0.02
+          ctx.stroke()
+        }
+
+        ctx.restore() // end body transform
+
+        // TELEGRAPH LINE (during windup)
+
+        if (isWindup && boss.chargeDirection) {
+          ctx.save()
+          ctx.globalAlpha = 0.35 + Math.sin(t / 50) * 0.25
+          ctx.strokeStyle = "#ff0000"
+          ctx.lineWidth = 6
+          ctx.setLineDash([20, 15])
+          ctx.beginPath()
+          ctx.moveTo(bx, by)
+          ctx.lineTo(bx + boss.chargeDirection.x * r * 6, by + boss.chargeDirection.y * r * 6)
+          ctx.stroke()
+          ctx.setLineDash([])
+          ctx.restore()
+        }
       }
+
+      // boss The Butcher
       else if (boss.type === "theButcher") {
        
         ctx.fillStyle = "#ffff00"
