@@ -1511,13 +1511,116 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           break
         }
 
+// Alien Bumblebee
 
+                case "alienBumblebee": {
+          if (boss.spawnTimer === undefined) boss.spawnTimer = 0
+          boss.spawnTimer += deltaTime
 
-        case "alienBumblebee":
-          // The bumblebee patrols in a buzzing figure eight.
-          boss.x += Math.sin(Date.now() / 500) * 2.5
-          boss.y += Math.cos(Date.now() / 700) * 1.5
+          // State initialization
+          if (boss.attackState === undefined) boss.attackState = "patrol"
+          if (boss.attackTimer === undefined) boss.attackTimer = 0
+          if (boss.attackCooldown === undefined) boss.attackCooldown = 4000
+          if (boss.dashDirX === undefined) boss.dashDirX = 0
+          if (boss.dashDirY === undefined) boss.dashDirY = 0
+
+          const dx = player.x - boss.x
+          const dy = player.y - boss.y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          const angle = Math.atan2(dy, dx)
+
+          const state = boss.attackState as string
+          boss.attackTimer += deltaTime
+
+          // PATROL — figure eight for 4s
+
+          if (state === "patrol") {
+            boss.attackCooldown -= deltaTime
+
+            // Figure eight patrol
+            boss.x += Math.sin(Date.now() / 500) * 2.5
+            boss.y += Math.cos(Date.now() / 700) * 1.5
+
+            // Clamp to canvas
+            boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
+            boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
+
+            // After 4s, windup
+            if (boss.attackCooldown <= 0) {
+              boss.attackTimer = 0
+              boss.attackState = "windup"
+              playSound(900, 0.1, "square")
+            }
+          }
+
+          // WINDUP — 400ms, shake in place
+
+          else if (state === "windup") {
+            // Shake in place
+            boss.x += (Math.random() - 0.5) * 3
+            boss.y += (Math.random() - 0.5) * 3
+
+            // Lock direction toward player
+            boss.dashDirX = Math.cos(angle)
+            boss.dashDirY = Math.sin(angle)
+
+            if (boss.attackTimer >= 400) {
+              boss.attackTimer = 0
+              boss.attackState = "dash"
+              playSound(600, 0.15, "sawtooth")
+            }
+          }
+
+          // DASH — 2000ms, fast lunge toward player
+
+          else if (state === "dash") {
+            boss.x += boss.dashDirX * boss.speed * 17
+            boss.y += boss.dashDirY * boss.speed * 17
+
+            // Collision check
+            if (
+              dist < player.radius + boss.radius &&
+              player.invincibleTime <= 0 &&
+              !player.shield
+            ) {
+              player.health -= 12
+              player.invincibleTime = 60
+              chickenHitSound()
+              addScreenShake(8)
+              addFloatingText(player.x, player.y - 25, "-12", "#facc15", 20)
+
+              const pushAngle = Math.atan2(dy, dx)
+              player.x += Math.cos(pushAngle) * 60
+              player.y += Math.sin(pushAngle) * 60
+
+              createParticles(boss.x, boss.y, "#facc15")
+
+              if (player.health <= 0) {
+                chickenDeathSound()
+                gameStateRef.current = "gameOver"
+                setGameState("gameOver")
+                setFinalScore(scoreRef.current)
+                setFinalKillCount(killCountRef.current)
+                setFinalWave(waveRef.current)
+              }
+            }
+
+            // Clamp to canvas
+            boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
+            boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
+
+            // After 2000ms, back to patrol
+            if (boss.attackTimer >= 2000) {
+              boss.attackTimer = 0
+              boss.attackCooldown = 4000
+              boss.attackState = "patrol"
+            }
+          }
+
           break
+        }
+
+
         case "alienOctopus":
           // The octopus slowly tracks the player like a living trap.
           boss.x += (player.x - boss.x) * 0.002
@@ -3737,20 +3840,123 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
         // boss Alien Bumblebee
 
-      } else if (boss.type === "alienBumblebee") {
+         } else if (boss.type === "alienBumblebee") {
         const t = bossTime
         const r = boss.radius
-        const wingFlap = Math.sin(t / 24)
+
+        //  ATTACK STATE 
+        const beeState = String(boss.attackState ?? "patrol")
+        const attackTimer = boss.attackTimer ?? 0
+        const isWindingUp = beeState === "windup"
+        const isDashing = beeState === "dash"
+
+        //  HP-BASED COLOR 
+        const hpPercent = boss.health / boss.maxHealth
+        const isLowHP = hpPercent < 0.5
+        const isCriticalHP = hpPercent < 0.25
+
+        //  ANIMATIONS 
+        const wingFlapSpeed = isWindingUp ? 10 : 30
+        const wingFlap = Math.sin(t / wingFlapSpeed)
         const bodyBob = Math.sin(t / 220) * r * 0.025
         const legTwitch = Math.sin(t / 75) * r * 0.025
         const cx = boss.x
         const cy = boss.y + bodyBob
 
+        // Blink animation
+        const blinkCycle = t % 3500
+        const isBlinking = blinkCycle > 3350
+
+        //  DASH TRAIL (behind boss) 
+        if (isDashing) {
+          ctx.save()
+          for (let i = 0; i < 5; i++) {
+            const trailOffset = i * r * 0.4
+            const tx = cx - (boss.dashDirX || 0) * trailOffset
+            const ty = cy - (boss.dashDirY || 0) * trailOffset
+
+            ctx.fillStyle = `rgba(250, 204, 21, ${0.5 - i * 0.1})`
+            ctx.beginPath()
+            ctx.arc(tx, ty, r * (0.35 - i * 0.06), 0, Math.PI * 2)
+            ctx.fill()
+          }
+          ctx.restore()
+
+          // Sparks
+          ctx.save()
+          for (let i = 0; i < 8; i++) {
+            const sparkAngle = (i / 8) * Math.PI * 2 + t / 100
+            const sparkDist = r * (0.5 + Math.sin(t / 50 + i) * 0.5)
+            const sx = cx + Math.cos(sparkAngle) * sparkDist
+            const sy = cy + Math.sin(sparkAngle) * sparkDist
+
+            ctx.fillStyle = "#facc15"
+            ctx.globalAlpha = 0.6
+            ctx.beginPath()
+            ctx.arc(sx, sy, 3, 0, Math.PI * 2)
+            ctx.fill()
+          }
+          ctx.restore()
+        }
+
+        //  WINDUP WARNING ───
+        if (isWindingUp) {
+          const progress = Math.min(attackTimer / 400, 1)
+
+          ctx.save()
+
+          // Pulsing warning ring
+          ctx.globalAlpha = 0.4 + progress * 0.5
+          ctx.strokeStyle = "#facc15"
+          ctx.lineWidth = 4
+          ctx.setLineDash([12, 8])
+          ctx.lineDashOffset = -t / 20
+          ctx.beginPath()
+          ctx.arc(cx, cy, r * (1.2 + progress * 0.6), 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          // Direction arrow
+          const arrowLength = r * (1.5 + progress * 0.8)
+          ctx.globalAlpha = 0.7 + progress * 0.3
+          ctx.strokeStyle = "#fef08a"
+          ctx.lineWidth = 6
+          ctx.lineCap = "round"
+          ctx.beginPath()
+          ctx.moveTo(cx, cy)
+          ctx.lineTo(
+            cx + (boss.dashDirX || 0) * arrowLength,
+            cy + (boss.dashDirY || 0) * arrowLength
+          )
+          ctx.stroke()
+
+          // Arrowhead
+          const tipX = cx + (boss.dashDirX || 0) * arrowLength
+          const tipY = cy + (boss.dashDirY || 0) * arrowLength
+          const perpX = -(boss.dashDirY || 0)
+          const perpY = (boss.dashDirX || 0)
+
+          ctx.beginPath()
+          ctx.moveTo(tipX, tipY)
+          ctx.lineTo(
+            tipX - (boss.dashDirX || 0) * r * 0.3 + perpX * r * 0.18,
+            tipY - (boss.dashDirY || 0) * r * 0.3 + perpY * r * 0.18
+          )
+          ctx.moveTo(tipX, tipY)
+          ctx.lineTo(
+            tipX - (boss.dashDirX || 0) * r * 0.3 - perpX * r * 0.18,
+            tipY - (boss.dashDirY || 0) * r * 0.3 - perpY * r * 0.18
+          )
+          ctx.stroke()
+
+          ctx.lineCap = "butt"
+          ctx.restore()
+        }
+
         ctx.save()
 
-        
-        //  WINGS 
-       
+        // WINGS
+
         const drawWing = (side: number, outer: boolean) => {
           ctx.save()
 
@@ -3763,9 +3969,12 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           ctx.translate(wingX, wingY)
           ctx.rotate(side * (outer ? 0.62 : 0.48) - side * flap)
 
+          // Wings glow more during windup/dash
+          const wingAlpha = isWindingUp ? 0.7 : (isDashing ? 0.6 : 1)
+
           ctx.fillStyle = outer
-            ? "rgba(186, 230, 253, 0.48)"
-            : "rgba(224, 242, 254, 0.30)"
+            ? `rgba(186, 230, 253, ${0.48 * wingAlpha})`
+            : `rgba(224, 242, 254, ${0.30 * wingAlpha})`
 
           ctx.beginPath()
           ctx.ellipse(
@@ -3783,7 +3992,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           ctx.lineWidth = Math.max(1, r * 0.012)
           ctx.stroke()
 
-          // A few clean wing veins
+          // Wing veins
           ctx.strokeStyle = "rgba(96, 165, 250, 0.58)"
           ctx.lineWidth = Math.max(0.8, r * 0.009)
 
@@ -3805,15 +4014,13 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           ctx.restore()
         }
 
-        // Rear wings first, then the larger front pair
         drawWing(-1, false)
         drawWing(1, false)
         drawWing(-1, true)
         drawWing(1, true)
 
-       
-        //  SEGMENTED LEGS
-  
+        // SEGMENTED LEGS
+
         ctx.lineCap = "round"
         ctx.lineJoin = "round"
 
@@ -3840,7 +4047,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             )
             ctx.stroke()
 
-            // Small golden joint
             ctx.fillStyle = "#d6a329"
             ctx.beginPath()
             ctx.arc(
@@ -3856,9 +4062,8 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
         ctx.lineCap = "butt"
 
-       
         // LONGER STINGER
-      
+
         const stingerY = cy + r * 0.69
 
         ctx.fillStyle = "#38200b"
@@ -3882,7 +4087,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         ctx.closePath()
         ctx.fill()
 
-        // One small venom drop, without a costly glow
         const dropOffset = (t / 100) % 14
 
         ctx.fillStyle = "#84cc16"
@@ -3896,10 +4100,8 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         )
         ctx.fill()
 
-        
-        //  FUZZY, GOLDEN ABDOMEN
-        
-        // Soft ground shadow
+        // FUZZY ABDOMEN (HP-based color)
+
         ctx.fillStyle = "rgba(0, 0, 0, 0.22)"
         ctx.beginPath()
         ctx.ellipse(
@@ -3922,10 +4124,10 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           r * 1.12
         )
 
-        bodyGrad.addColorStop(0, "#fff9cf")
-        bodyGrad.addColorStop(0.35, "#facc15")
-        bodyGrad.addColorStop(0.75, "#eab308")
-        bodyGrad.addColorStop(1, "#92400e")
+        bodyGrad.addColorStop(0, isCriticalHP ? "#ff9999" : isLowHP ? "#ffcc66" : "#fff9cf")
+        bodyGrad.addColorStop(0.35, isCriticalHP ? "#ff3333" : isLowHP ? "#ff9900" : "#facc15")
+        bodyGrad.addColorStop(0.75, isCriticalHP ? "#990000" : isLowHP ? "#cc6600" : "#eab308")
+        bodyGrad.addColorStop(1, isCriticalHP ? "#450000" : isLowHP ? "#663300" : "#92400e")
 
         ctx.fillStyle = bodyGrad
         ctx.beginPath()
@@ -3940,7 +4142,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         )
         ctx.fill()
 
-        // Three HORIZONTAL black bands (real bee style), clipped to abdomen
+        // Three horizontal black bands
         ctx.save()
         ctx.beginPath()
         ctx.ellipse(
@@ -3956,7 +4158,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
         ctx.fillStyle = "#1a120a"
 
-        // 3 horizontal stripes, thicker
         for (let i = -1; i <= 1; i++) {
           const stripeY = cy + i * r * 0.32
 
@@ -4004,9 +4205,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         )
         ctx.fill()
 
-        
-        //  HEAD
-       
+        // HEAD
         const headY = cy - r * 0.70
         const headR = r * 0.48
 
@@ -4032,7 +4231,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         ctx.lineWidth = Math.max(1.5, r * 0.025)
         ctx.stroke()
 
-        // Subtle fuzz around the head
+        // Fuzz around head
         ctx.strokeStyle = "rgba(220, 190, 125, 0.48)"
         ctx.lineWidth = Math.max(0.8, r * 0.009)
 
@@ -4050,14 +4249,25 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           ctx.stroke()
         }
 
-        
-        // COMPOUND EYES (with subtle glow)
-        
+        // COMPOUND EYES (with blink + charge glow)
         for (const side of [-1, 1]) {
           const eyeX = cx + side * r * 0.255
           const eyeY = headY - r * 0.015
           const eyeRX = r * 0.17
           const eyeRY = r * 0.205
+
+          // Blink
+          if (isBlinking) {
+            ctx.strokeStyle = "#0a0000"
+            ctx.lineWidth = r * 0.05
+            ctx.lineCap = "round"
+            ctx.beginPath()
+            ctx.moveTo(eyeX - r * 0.15, eyeY)
+            ctx.lineTo(eyeX + r * 0.15, eyeY)
+            ctx.stroke()
+            ctx.lineCap = "butt"
+            continue
+          }
 
           const eyeGrad = ctx.createRadialGradient(
             eyeX - eyeRX * 0.35,
@@ -4073,10 +4283,10 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           eyeGrad.addColorStop(0.72, "#b91c1c")
           eyeGrad.addColorStop(1, "#450a0a")
 
-          // Glow (only 1 shadowBlur for all eyes)
+          // Glow (stronger during windup/dash)
           ctx.save()
           ctx.shadowColor = "#ff2222"
-          ctx.shadowBlur = r * 0.12
+          ctx.shadowBlur = isWindingUp ? r * 0.25 : (isDashing ? r * 0.2 : r * 0.12)
 
           ctx.fillStyle = eyeGrad
           ctx.beginPath()
@@ -4096,7 +4306,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           ctx.lineWidth = Math.max(1, r * 0.018)
           ctx.stroke()
 
-          // Sparse facets 
+          // Facets
           ctx.strokeStyle = "rgba(255, 220, 220, 0.55)"
           ctx.lineWidth = Math.max(0.7, r * 0.008)
 
@@ -4112,7 +4322,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             ctx.stroke()
           }
 
-          // Small natural reflection
+          // Reflection
           ctx.fillStyle = "#fff1f2"
           ctx.beginPath()
           ctx.arc(
@@ -4125,8 +4335,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           ctx.fill()
         }
 
-        
-        // MANDIBLES 
+        // MANDIBLES
 
         for (const side of [-1, 1]) {
           ctx.fillStyle = "#342016"
@@ -4143,9 +4352,8 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           ctx.stroke()
         }
 
-        
-        // ANTENNAE 
-        
+        // ANTENNAE
+
         const antTwitch = Math.sin(t / 150) * r * 0.035
 
         ctx.strokeStyle = "#21170f"
@@ -4183,6 +4391,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
         ctx.lineCap = "butt"
         ctx.restore()
+      
       
       
       
