@@ -756,7 +756,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
    const spawnBoss = (canvas: HTMLCanvasElement) => {
     const bossTypes: Boss["type"][] = [
-      "voidLeviathan",
       "alienMouse",
       "alienBumblebee",
       "alienOctopus",
@@ -1060,43 +1059,37 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
   }
     // Effect 3: Keyboard listeners
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+      const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase()
       keysRef.current.add(key)
 
-      // Double-tap detection for charge
-      const player = playerRef.current
-      const gameRunning = gameStateRef.current === "playing"
-      const directionKeys = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"]
-
-      if (gameRunning && player 
-        && directionKeys.includes(key) 
-        && !player.isCharging && player.chargeCooldown <= 0) {
-        const now = performance.now()
-        const last = lastKeyPressRef.current
-        const DOUBLE_TAP_WINDOW = 250 // ms
-
-        if (last.key === key && now - last.time < DOUBLE_TAP_WINDOW) {
-          // Double-tap detected! Activate charge in this direction.
+      // ─── Q = Charge ability ───
+      if (key === "q" && gameStateRef.current === "playing") {
+        const player = playerRef.current
+        if (player && !player.isCharging && player.chargeCooldown <= 0) {
+          // Determine charge direction
           let dirX = 0
           let dirY = 0
-          switch (key) {
-            case "w":
-            case "arrowup":
-              dirY = -1
-              break
-            case "s":
-            case "arrowdown":
-              dirY = 1
-              break
-            case "a":
-            case "arrowleft":
-              dirX = -1
-              break
-            case "d":
-            case "arrowright":
-              dirX = 1
-              break
+
+          // Priority 1: movement keys
+          if (keysRef.current.has("w") || keysRef.current.has("arrowup")) dirY = -1
+          if (keysRef.current.has("s") || keysRef.current.has("arrowdown")) dirY = 1
+          if (keysRef.current.has("a") || keysRef.current.has("arrowleft")) dirX = -1
+          if (keysRef.current.has("d") || keysRef.current.has("arrowright")) dirX = 1
+
+          // Priority 2: aim toward mouse if no movement keys
+          if (dirX === 0 && dirY === 0) {
+            const angleToMouse = Math.atan2(
+              mouseRef.current.y - player.y,
+              mouseRef.current.x - player.x
+            )
+            dirX = Math.cos(angleToMouse)
+            dirY = Math.sin(angleToMouse)
+          } else {
+            // Normalize diagonal
+            const len = Math.sqrt(dirX * dirX + dirY * dirY)
+            dirX /= len
+            dirY /= len
           }
 
           player.isCharging = true
@@ -1104,14 +1097,10 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           player.chargeCooldown = 15000
           player.chargeDirection = { x: dirX, y: dirY }
           player.chargeReady = false
+
           chargeSound()
           addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
           addScreenShake(10)
-
-          // Reset last key so it doesn't retrigger
-          lastKeyPressRef.current = { key: "", time: 0 }
-        } else {
-          lastKeyPressRef.current = { key, time: now }
         }
       }
     }
@@ -1268,15 +1257,15 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (keysRef.current.has("d") || keysRef.current.has("arrowright")) dx += 1
     }
 
-      if (player.isCharging) {
-      // Continue charging forward in the stored direction
-      const chargeSpeed = 15
-      player.x += player.chargeDirection.x * chargeSpeed
-      player.y += player.chargeDirection.y * chargeSpeed
-      player.chargeDistance += chargeSpeed
+    if (player.isCharging) {
+  // Continue charging forward in the stored direction
+  const chargeSpeed = 15
+  player.x += player.chargeDirection.x * chargeSpeed
+  player.y += player.chargeDirection.y * chargeSpeed
+  player.chargeDistance += chargeSpeed
 
-      // Kill enemies in path
-      enemiesRef.current = enemiesRef.current.filter((enemy) => {
+  // Kill enemies in path
+  enemiesRef.current = enemiesRef.current.filter((enemy) => {
         const edx = player.x - enemy.x
         const edy = player.y - enemy.y
         const dist = Math.sqrt(edx * edx + edy * edy)
@@ -1297,9 +1286,9 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
       // Stop charge after distance
       if (player.chargeDistance > 300) {
-        player.isCharging = false
-        player.chargeDistance = 0
-        player.chargeDirection = { x: 0, y: 0 }
+    player.isCharging = false
+    player.chargeDistance = 0
+    player.chargeDirection = { x: 0, y: 0 }
       }
     } else if (player.chargeReady) {
       // Player has a stored charge from power-up; wait for direction input
@@ -2595,276 +2584,267 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           
           
           // VOID LEVIATHAN
-    
-case "voidLeviathan": {
-  boss.spawnTimer ??= 0
-  boss.leviathanPhase ??= "forceField"
-  boss.leviathanPhaseTimer ??= 0
-  boss.leviathanWhipTimer ??= 0
-  boss.leviathanDashCount ??= 0
-  boss.leviathanHealTimer ??= 0
-  boss.leviathanWaveTimer ??= 0
-  boss.leviathanTurnTimer ??= 0
-  boss.leviathanBurstTimer ??= 0
-  boss.leviathanWaveCount ??= 0
-  boss.leviathanWaveSequenceTimer ??= 0
+            case "voidLeviathan": {
+          boss.spawnTimer ??= 0
+          boss.leviathanPhase ??= "forceField"
+          boss.leviathanPhaseTimer ??= 0
+          boss.leviathanWhipTimer ??= 0
+          boss.leviathanDashCount ??= 0
+          boss.leviathanHealTimer ??= 0
+          boss.leviathanWaveTimer ??= 0
+          boss.leviathanTurnTimer ??= 0
+          boss.leviathanBurstTimer ??= 0
+          boss.leviathanWaveCount ??= 0
+          boss.leviathanWaveSequenceTimer ??= 0
 
-  boss.spawnTimer += deltaTime
-  boss.leviathanPhaseTimer += deltaTime
+          boss.spawnTimer += deltaTime
+          boss.leviathanPhaseTimer += deltaTime
 
-  const dx = player.x - boss.x
-  const dy = player.y - boss.y
-  const dist = Math.hypot(dx, dy)
-  const angleToPlayer = Math.atan2(dy, dx)
-  const frameScale = Math.min(deltaTime / 16.667, 2.5)
+          const dx = player.x - boss.x
+          const dy = player.y - boss.y
+          const dist = Math.hypot(dx, dy)
+          const angleToPlayer = Math.atan2(dy, dx)
+          const frameScale = Math.min(deltaTime / 16.667, 2.5)
 
-  if (boss.leviathanHeading === undefined) {
-    boss.leviathanHeading = angleToPlayer
-  }
+          if (boss.leviathanHeading === undefined) {
+            boss.leviathanHeading = angleToPlayer
+          }
 
-  // PHASE 1: FORCE FIELD — 5 seconds
+          // PHASE 1: FORCE FIELD — 5 seconds
+          if (boss.leviathanPhase === "forceField") {
+            const heading = boss.leviathanHeading
+            const turn = Math.atan2(
+              Math.sin(angleToPlayer - heading),
+              Math.cos(angleToPlayer - heading)
+            )
 
-  if (boss.leviathanPhase === "forceField") {
-    const heading = boss.leviathanHeading
-    const turn = Math.atan2(
-      Math.sin(angleToPlayer - heading),
-      Math.cos(angleToPlayer - heading)
-    )
+            boss.leviathanHeading =
+              heading + Math.max(-0.035, Math.min(0.035, turn)) * frameScale
 
-    boss.leviathanHeading =
-      heading + Math.max(-0.035, Math.min(0.035, turn)) * frameScale
+            boss.x +=
+              Math.cos(boss.leviathanHeading) * boss.speed * 0.5 * frameScale
+            boss.y +=
+              Math.sin(boss.leviathanHeading) * boss.speed * 0.5 * frameScale
 
-    boss.x +=
-      Math.cos(boss.leviathanHeading) * boss.speed * 0.5 * frameScale
-    boss.y +=
-      Math.sin(boss.leviathanHeading) * boss.speed * 0.5 * frameScale
+            // Fire three waves in sequence, not three simultaneous bullets
+            boss.leviathanWhipTimer += deltaTime
 
-    // Fire three waves in sequence, not three simultaneous bullets
-    boss.leviathanWhipTimer += deltaTime
+            if (
+              boss.leviathanWaveCount === 0 &&
+              boss.leviathanWhipTimer >= 1500
+            ) {
+              boss.leviathanWhipTimer = 0
+              boss.leviathanWaveCount = 1
+              boss.leviathanWaveSequenceTimer = 0
+            }
 
-    if (
-      boss.leviathanWaveCount === 0 &&
-      boss.leviathanWhipTimer >= 1500
-    ) {
-      boss.leviathanWhipTimer = 0
-      boss.leviathanWaveCount = 1
-      boss.leviathanWaveSequenceTimer = 0
-    }
+            if (boss.leviathanWaveCount > 0) {
+              boss.leviathanWaveSequenceTimer += deltaTime
 
-    if (boss.leviathanWaveCount > 0) {
-      boss.leviathanWaveSequenceTimer += deltaTime
+              if (
+                boss.leviathanWaveCount === 1 ||
+                boss.leviathanWaveSequenceTimer >= 220
+              ) {
+                if (boss.leviathanWaveCount > 1) {
+                  boss.leviathanWaveSequenceTimer = 0
+                }
 
-      if (
-        boss.leviathanWaveCount === 1 ||
-        boss.leviathanWaveSequenceTimer >= 220
-      ) {
-        if (boss.leviathanWaveCount > 1) {
-          boss.leviathanWaveSequenceTimer = 0
+              
+                
+                const tailAngle = boss.leviathanHeading + Math.PI
+                const tailX = boss.x + Math.cos(tailAngle) * boss.radius * 0.4
+                const tailY = boss.y + Math.sin(tailAngle) * boss.radius * 0.4
+
+                projectilesRef.current.push({
+                  x: tailX,
+                  y: tailY,
+                  radius: boss.radius * 1.2,
+                  vx: Math.cos(angleToPlayer) * 2,
+                  vy: Math.sin(angleToPlayer) * 2,
+                  damage: 50, 
+                  color: "#a855f7",
+                  isEnemyProjectile: true,
+                  isLeviathanWave: true,
+                  waveAngle: angleToPlayer,
+                  waveScaleX: 1,
+                  waveScaleY: 0.3,
+                  waveAge: 0,
+                  waveMaxAge: 3000, 
+                } as typeof projectilesRef.current[number])
+
+                playSound(300, 0.12, "sawtooth")
+
+                boss.leviathanWaveCount += 1
+
+                if (boss.leviathanWaveCount > 3) {
+                  boss.leviathanWaveCount = 0
+                  boss.leviathanWaveSequenceTimer = 0
+                }
+              }
+            }
+
+            if (boss.leviathanPhaseTimer >= 5000) {
+              boss.leviathanPhase = "zigzag"
+              boss.leviathanPhaseTimer = 0
+              boss.leviathanDashCount = 0
+              boss.leviathanTurnTimer = 0
+              boss.leviathanBurstTimer = 0
+              boss.leviathanWaveCount = 0
+              boss.leviathanWaveSequenceTimer = 0
+              boss.leviathanWhipTimer = 0
+              boss.leviathanHeading = angleToPlayer
+              playSound(600, 0.3, "square")
+            }
+          }
+
+          // PHASE 2: ZIGZAG HUNT — 10 seconds, vulnerable
+          else if (boss.leviathanPhase === "zigzag") {
+            boss.leviathanTurnTimer += deltaTime
+
+            // Four acceleration bursts, spread across the 10-second hunt.
+            if (
+              boss.leviathanDashCount < 4 &&
+              boss.leviathanTurnTimer >= 2000
+            ) {
+              boss.leviathanTurnTimer -= 2000
+              boss.leviathanDashCount += 1
+              boss.leviathanBurstTimer = 350
+
+              playSound(
+                450 + boss.leviathanDashCount * 70,
+                0.12,
+                "sawtooth"
+              )
+              addScreenShake(5)
+            }
+
+            boss.leviathanBurstTimer = Math.max(
+              0,
+              boss.leviathanBurstTimer - deltaTime
+            )
+
+            const weave = Math.sin(boss.leviathanPhaseTimer / 190) * 0.9
+            const diagonalOffset = Math.sin(boss.leviathanPhaseTimer / 420) * 0.45
+
+            const desiredAngle = angleToPlayer + weave + diagonalOffset
+
+            const heading = boss.leviathanHeading ?? angleToPlayer
+            const angleDifference = Math.atan2(
+              Math.sin(desiredAngle - heading),
+              Math.cos(desiredAngle - heading)
+            )
+
+            const turnRate = 0.15 * frameScale
+
+            boss.leviathanHeading =
+              heading +
+              Math.max(-turnRate, Math.min(turnRate, angleDifference))
+
+            const moveSpeed =
+              boss.speed * (boss.leviathanBurstTimer > 0 ? 5 : 2.5)
+
+            boss.x +=
+              Math.cos(boss.leviathanHeading) * moveSpeed * frameScale
+            boss.y +=
+              Math.sin(boss.leviathanHeading) * moveSpeed * frameScale
+
+            const pdx = player.x - boss.x
+            const pdy = player.y - boss.y
+            const postMoveDist = Math.hypot(pdx, pdy)
+
+            if (
+              postMoveDist < player.radius + boss.radius &&
+              player.invincibleTime <= 0 &&
+              !player.shield
+            ) {
+              player.health -= 25
+              player.invincibleTime = 60
+
+              chickenHitSound()
+              addScreenShake(15)
+              addFloatingText(
+                player.x, player.y - 30, "-25", "#a855f7", 24
+              )
+
+              const pushAngle = Math.atan2(pdy, pdx)
+              player.x += Math.cos(pushAngle) * 80
+              player.y += Math.sin(pushAngle) * 80
+
+              createParticles(boss.x, boss.y, "#a855f7")
+
+              if (player.health <= 0) {
+                chickenDeathSound()
+                gameStateRef.current = "gameOver"
+                setGameState("gameOver")
+                setFinalScore(scoreRef.current)
+                setFinalKillCount(killCountRef.current)
+                setFinalWave(waveRef.current)
+              }
+            }
+
+            if (boss.leviathanPhaseTimer >= 10000) {
+              boss.leviathanPhase = "uroboros"
+              boss.leviathanPhaseTimer = 0
+              boss.leviathanHealTimer = 0
+              boss.leviathanBurstTimer = 0
+              boss.leviathanTurnTimer = 0
+
+              playSound(400, 0.4, "triangle")
+            }
+          }
+
+          // PHASE 3: OUROBOROS — 4 seconds
+          else if (boss.leviathanPhase === "uroboros") {
+            // Heal 20 HP per second.
+            boss.health = Math.min(
+              boss.maxHealth,
+              boss.health + 20 * deltaTime / 1000
+             
+            )
+
+            if (dist < 300 + player.radius) {
+              player.health -= 35 * deltaTime / 1000
+               addScreenShake(10)
+              if(player.health <= 0) {
+
+              chickenDeathSound()
+              addScreenShake(30)
+
+              gameStateRef.current = "gameOver"
+              setGameState("gameOver")
+              setFinalScore(scoreRef.current)
+              setFinalKillCount(killCountRef.current)
+              setFinalWave(waveRef.current)
+              }
+            }
+
+
+            if (boss.leviathanPhaseTimer >= 4000) {
+              boss.leviathanPhase = "forceField"
+              boss.leviathanPhaseTimer = 0
+              boss.leviathanWhipTimer = 0
+              boss.leviathanWaveCount = 0
+              boss.leviathanWaveSequenceTimer = 0
+              boss.leviathanTurnTimer = 0
+              boss.leviathanBurstTimer = 0
+
+              playSound(800, 0.3, "sine")
+            }
+          }
+
+          // Update the trail AFTER movement
+          if (!boss.leviathanTrail) {
+            boss.leviathanTrail = []
+          }
+
+          boss.leviathanTrail.unshift({ x: boss.x, y: boss.y })
+
+          if (boss.leviathanTrail.length > 22) {
+            boss.leviathanTrail.length = 22
+          }
+
+          break
         }
-
-        // Wave origin: behind the serpent, near its tail
-        const tailAngle = boss.leviathanHeading + Math.PI
-        const tailX = boss.x + Math.cos(tailAngle) * boss.radius * 2
-        const tailY = boss.y + Math.sin(tailAngle) * boss.radius * 2
-
-        // These fields identify a custom elliptical shockwave
-        // The projectile renderer/collision handler must support them
-
-              projectilesRef.current.push({
-          x: tailX,
-          y: tailY,
-          radius: boss.radius * 1.2,  
-          vx: Math.cos(angleToPlayer) * 2,  
-          vy: Math.sin(angleToPlayer) * 2,
-          damage: 15,
-          color: "#a855f7",
-          isEnemyProjectile: true,
-
-          isLeviathanWave: true,
-          waveAngle: angleToPlayer,
-          waveScaleX: 1.0,
-          waveScaleY: 0.35,
-          waveAge: 0,
-          waveMaxAge: 2500,  
-        } as typeof projectilesRef.current[number])
-
-        playSound(300, 0.12, "sawtooth")
-
-        boss.leviathanWaveCount += 1
-
-        if (boss.leviathanWaveCount > 3) {
-          boss.leviathanWaveCount = 0
-          boss.leviathanWaveSequenceTimer = 0
-        }
-      }
-    }
-
-    if (boss.leviathanPhaseTimer >= 5000) {
-      boss.leviathanPhase = "zigzag"
-      boss.leviathanPhaseTimer = 0
-      boss.leviathanDashCount = 0
-      boss.leviathanTurnTimer = 0
-      boss.leviathanBurstTimer = 0
-
-      // Prevent a pending wave sequence from leaking into the next phase
-
-      boss.leviathanWaveCount = 0
-      boss.leviathanWaveSequenceTimer = 0
-      boss.leviathanWhipTimer = 0
-
-      boss.leviathanHeading = angleToPlayer
-      playSound(600, 0.3, "square")
-    }
-  }
-
-  // PHASE 2: ZIGZAG HUNT — 10 seconds, vulnerable
-
-  else if (boss.leviathanPhase === "zigzag") {
-    boss.leviathanTurnTimer += deltaTime
-
-    // Four acceleration bursts, spread across the 10-second hunt.
-    if (
-      boss.leviathanDashCount < 4 &&
-      boss.leviathanTurnTimer >= 2000
-    ) {
-      boss.leviathanTurnTimer -= 2000
-      boss.leviathanDashCount += 1
-      boss.leviathanBurstTimer = 350
-
-      playSound(
-        450 + boss.leviathanDashCount * 70,
-        0.12,
-        "sawtooth"
-      )
-      addScreenShake(5)
-    }
-
-    boss.leviathanBurstTimer = Math.max(
-      0,
-      boss.leviathanBurstTimer - deltaTime
-    )
-
-    const weave =
-      Math.sin(boss.leviathanPhaseTimer / 190) * 0.9
-    const diagonalOffset =
-      Math.sin(boss.leviathanPhaseTimer / 420) * 0.45
-
-    const desiredAngle =
-      angleToPlayer + weave + diagonalOffset
-
-    const heading = boss.leviathanHeading ?? angleToPlayer
-    const angleDifference = Math.atan2(
-      Math.sin(desiredAngle - heading),
-      Math.cos(desiredAngle - heading)
-    )
-
-        const turnRate = 0.15 * frameScale
-
-    boss.leviathanHeading =
-      heading +
-      Math.max(-turnRate, Math.min(turnRate, angleDifference))
-
-    const moveSpeed =
-      boss.speed * (boss.leviathanBurstTimer > 0 ? 5 : 2.5)
-
-    boss.x +=
-      Math.cos(boss.leviathanHeading) * moveSpeed * frameScale
-    boss.y +=
-      Math.sin(boss.leviathanHeading) * moveSpeed * frameScale
-
-    const pdx = player.x - boss.x
-    const pdy = player.y - boss.y
-    const postMoveDist = Math.hypot(pdx, pdy)
-
-    if (
-      postMoveDist < player.radius + boss.radius &&
-      player.invincibleTime <= 0 &&
-      !player.shield
-    ) {
-      player.health -= 25
-      player.invincibleTime = 60
-
-      chickenHitSound()
-      addScreenShake(15)
-      addFloatingText(
-        player.x, player.y - 30, "-25", "#a855f7", 24
-      )
-
-      const pushAngle = Math.atan2(pdy, pdx)
-      player.x += Math.cos(pushAngle) * 80
-      player.y += Math.sin(pushAngle) * 80
-
-      createParticles(boss.x, boss.y, "#a855f7")
-
-      if (player.health <= 0) {
-        chickenDeathSound()
-        gameStateRef.current = "gameOver"
-        setGameState("gameOver")
-        setFinalScore(scoreRef.current)
-        setFinalKillCount(killCountRef.current)
-        setFinalWave(waveRef.current)
-      }
-    }
-
-    if (boss.leviathanPhaseTimer >= 10000) {
-      boss.leviathanPhase = "uroboros"
-      boss.leviathanPhaseTimer = 0
-      boss.leviathanHealTimer = 0
-      boss.leviathanBurstTimer = 0
-      boss.leviathanTurnTimer = 0
-
-      playSound(400, 0.4, "triangle")
-    }
-  }
-
-  // PHASE 3: OUROBOROS — 4 seconds
-
-  else if (boss.leviathanPhase === "uroboros") {
-    // Heal 20 HP per second.
-    boss.health = Math.min(
-      boss.maxHealth,
-      boss.health + 10 * deltaTime / 1000
-    )
-
-    if (dist < 300 + player.radius) {
-      player.health = 0
-
-      chickenDeathSound()
-      addScreenShake(30)
-
-      gameStateRef.current = "gameOver"
-      setGameState("gameOver")
-      setFinalScore(scoreRef.current)
-      setFinalKillCount(killCountRef.current)
-      setFinalWave(waveRef.current)
-    }
-
-    if (boss.leviathanPhaseTimer >= 4000) {
-      boss.leviathanPhase = "forceField"
-      boss.leviathanPhaseTimer = 0
-      boss.leviathanWhipTimer = 0
-      boss.leviathanWaveCount = 0
-      boss.leviathanWaveSequenceTimer = 0
-      boss.leviathanTurnTimer = 0
-      boss.leviathanBurstTimer = 0
-
-      playSound(800, 0.3, "sine")
-    }
-  }
-
-  // Update the trail AFTER movement, so the head doesn't lag one frame.
-  if (!boss.leviathanTrail) {
-    boss.leviathanTrail = []
-  }
-
-  boss.leviathanTrail.unshift({ x: boss.x, y: boss.y })
-
-  if (boss.leviathanTrail.length > 22) {
-    boss.leviathanTrail.length = 22
-  }
-
-  break
-}
 
 
         case "theHive":
@@ -3224,13 +3204,70 @@ case "voidLeviathan": {
     projectilesRef.current = projectilesRef.current.filter((proj) => {
       if (proj.dead) return false
 
-            // Update leviathan wave age
+
+            //  LEVIATHAN WAVE ( collision + kick) 
+        
       if (proj.isLeviathanWave) {
         proj.waveAge = (proj.waveAge || 0) + deltaTime
-        if (proj.waveAge >= (proj.waveMaxAge || 1100)) {
+
+        // Age out
+        if (proj.waveAge >= (proj.waveMaxAge || 5500)) {
           return false
         }
+
+        // The wave expands over time (matches visual)
+        const waveMaxAge = proj.waveMaxAge || 5500
+        const waveProgress = Math.min(proj.waveAge / waveMaxAge, 4)  // cap at 4x expansion
+        const currentRadius = proj.radius * (1 + waveProgress * 3.5)
+
+        // Skip if player is invincible or shielded
+        if (player.invincibleTime > 0) return true
+
+        // Collision check with EXPANDED radius
+        const waveDx = proj.x - player.x
+        const waveDy = proj.y - player.y
+        const waveDist = Math.sqrt(waveDx * waveDx + waveDy * waveDy)
+
+        if (waveDist < currentRadius + player.radius) {
+          if (!player.shield) {
+            player.health -= 50
+            player.invincibleTime = 120
+            chickenHitSound()
+            addScreenShake(40)
+            addFloatingText(player.x, player.y - 40, "-50", "#ff0000", 32)
+
+            // Massive kickback — to opposite side of map
+            const pushAngle = Math.atan2(waveDy, waveDx)
+            const mapDiagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
+            const kickDistance = mapDiagonal * 1.2
+
+            player.x += Math.cos(pushAngle) * kickDistance
+            player.y += Math.sin(pushAngle) * kickDistance
+
+            // Clamp to canvas
+            player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
+            player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
+
+            createParticles(player.x, player.y, "#a855f7")
+            playSound(150, 0.4, "sawtooth")
+            playSound(80, 0.6, "triangle")
+
+            if (player.health <= 0) {
+              chickenDeathSound()
+              gameStateRef.current = "gameOver"
+              setGameState("gameOver")
+              setFinalScore(scoreRef.current)
+              setFinalKillCount(killCountRef.current)
+              setFinalWave(waveRef.current)
+            }
+          }
+          return false  // consume wave
+        }
+
+        return true  // keep wave alive
       }
+
+
 
       // Move projectile (ONCE, for both player and enemy)
       proj.x += proj.vx
@@ -3456,15 +3493,18 @@ if (bossHit) {
             player.weaponTime = 15000 // 15 seconds
             addFloatingText(player.x, player.y - 40, powerUp.type.toUpperCase(), "#ffaa00", 20)
             break
+
           case "shield":
             player.shield = true
             player.shieldTime = 10000 // 10 seconds
             addFloatingText(player.x, player.y - 40, "SHIELD!", "#00ffff", 20)
             break
+
           case "health":
             player.health = Math.min(player.health + 30, player.maxHealth)
             addFloatingText(player.x, player.y - 40, "+30 HP", "#00ff00", 20)
             break
+
           case "speedBoost":
             player.speed = 8
             setTimeout(() => {
@@ -3472,12 +3512,12 @@ if (bossHit) {
             }, 5000)
             addFloatingText(player.x, player.y - 40, "SPEED UP!", "#ff00ff", 20)
             break
-                   case "charge":
-            if (player.chargeCooldown <= 0) {
-              player.chargeReady = true // store charge, wait for direction
-              addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
-            }
-            break
+
+              // Power-up:
+case "charge":
+  player.chargeCooldown = 0  // reset cooldown
+  addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
+  break
         }
 
         return false
@@ -9147,7 +9187,7 @@ ctx.stroke()
                    } else {
           // Local coordinates: head faces right, tail extends behind it.
           // Multi-frequency S-curves make the creature read as a serpent.
-          const bodyLength = r * 7.2
+          const bodyLength = r * 9.2
 
           // When zigzagging, the whole body should "whip" — not just wave.
           // Add a large traveling wave that moves along the body.
@@ -9629,9 +9669,10 @@ ctx.stroke()
     }
 
      projectilesRef.current.forEach((proj) => {
-  //  VOID SCYTHE SLASH 
+    
+      
 
-        // ─── LEVIATHAN SHOCKWAVE (elliptical, C-shaped) ───
+        //  LEVIATHAN SHOCKWAVE (elliptical, C-shaped) 
       if (proj.isLeviathanWave) {
         const waveAge = proj.waveAge || 0
         const waveMaxAge = proj.waveMaxAge || 1100
@@ -9685,6 +9726,8 @@ ctx.stroke()
         ctx.restore()
         return
       }
+
+      // VOID SLASH (curved, crescent-shaped)
   if (proj.isVoidSlash) {
     const angle = Math.atan2(proj.vy, proj.vx)
     
@@ -10468,6 +10511,7 @@ const gameLoop: GameLoopFn = (currentTime: number) => {
               <p>WASD or Arrow Keys to move</p>
               <p>Mouse or Touch to aim and shoot</p>
               <p>SPACE for Caca-Doo stun</p>
+              <p>Q for Charge</p>
             </div>
             <button
               onClick={startGame}
