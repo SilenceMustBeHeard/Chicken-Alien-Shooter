@@ -137,6 +137,12 @@ leviathanWaveSequenceTimer?: number
   hivePhase?: 1 | 2 | 3 | 4
   hiveAttackTimer?: number
   hiveAttackChoice?: number
+  // Phase 2 — 2 Hive Lords
+hiveLordA?: { x: number; y: number; health: number; maxHealth: number; shootTimer: number }
+hiveLordB?: { x: number; y: number; health: number; maxHealth: number; stunTimer: number;
+   healTimer: number; isHealing: boolean }
+hivePhase2Timer?: number
+
 }
 
 type FlyingSaucer = GameObject & {
@@ -2999,14 +3005,157 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
               }
             }
 
-            // PHASE TRANSITION: HP < 600
+                     // PHASE TRANSITION: HP < 600
             if (boss.health <= 600) {
-              // TODO: transition to Phase 2 (2 hive lords)
-              // For now, just log
-              console.log("[HIVE] Phase 1 → Phase 2 transition (not yet implemented)")
               boss.hivePhase = 2
+              boss.hivePhase2Timer = 0
+
+              // Initialize Lord A (shield) — top-left
+              boss.hiveLordA = {
+                x: canvas.width * 0.3,
+                y: canvas.height * 0.2,
+                health: 300,
+                maxHealth: 300,
+                shootTimer: 0,
+              }
+
+              // Initialize Lord B (healer) — top-right
+              boss.hiveLordB = {
+                x: canvas.width * 0.7,
+                y: canvas.height * 0.2,
+                health: 300,
+                maxHealth: 300,
+                stunTimer: 0,
+                healTimer: 0,
+                isHealing: false,
+              }
+
+              // Hide main boss (it becomes the two lords)
+              boss.health = 600  // will be tracked separately
+              boss.x = -9999  // off-screen
+              boss.y = -9999
+              boss.radius = 0  // no collision
+
+              playSound(200, 0.5, "sawtooth")
+              addScreenShake(30)
+              createParticles(canvas.width * 0.3, canvas.height * 0.2, "#3b82f6")
+              createParticles(canvas.width * 0.7, canvas.height * 0.2, "#22c55e")
+            }
+          } else if (boss.hivePhase === 2) {
+            // PHASE 2: 2 HIVE LORDS
+            const lordA = boss.hiveLordA
+            const lordB = boss.hiveLordB
+
+            if (!lordA || !lordB) break
+
+            boss.hivePhase2Timer = (boss.hivePhase2Timer || 0) + deltaTime
+
+            //  ORBIT TOP OF SCREEN 
+            const orbitCenterX = canvas.width / 2
+            const orbitCenterY = canvas.height * 0.2
+            const orbitRadius = 250
+            const orbitSpeed = boss.hivePhase2Timer / 3000
+
+            // Default positions (orbit)
+            let targetAx = orbitCenterX + Math.cos(orbitSpeed) * orbitRadius
+            let targetAy = orbitCenterY + Math.sin(orbitSpeed) * orbitRadius * 0.5
+            let targetBx = orbitCenterX + Math.cos(orbitSpeed + Math.PI) * orbitRadius
+            let targetBy = orbitCenterY + Math.sin(orbitSpeed + Math.PI) * orbitRadius * 0.5
+
+            //  HEAL PHASE (every 8s) 
+            const healPhaseActive = boss.hivePhase2Timer % 8000 < 5000
+            lordB.isHealing = healPhaseActive
+
+            if (healPhaseActive) {
+              // Stand next to each other (80px apart)
+              targetAx = orbitCenterX - 40
+              targetAy = orbitCenterY
+              targetBx = orbitCenterX + 40
+              targetBy = orbitCenterY
+
+              // Heal both lords +10 HP/s
+              const healPerFrame = (10 / 1000) * deltaTime
+              lordA.health = Math.min(lordA.maxHealth, lordA.health + healPerFrame)
+              lordB.health = Math.min(lordB.maxHealth, lordB.health + healPerFrame)
+            }
+
+            // Smooth movement toward targets
+            lordA.x += (targetAx - lordA.x) * 0.05
+            lordA.y += (targetAy - lordA.y) * 0.05
+            lordB.x += (targetBx - lordB.x) * 0.05
+            lordB.y += (targetBy - lordB.y) * 0.05
+
+            //  LORD A: SHOOT PROJECTILES (every 1.5s) 
+            lordA.shootTimer += deltaTime
+            if (lordA.shootTimer >= 1500) {
+              lordA.shootTimer = 0
+
+              const angleToPlayer = Math.atan2(player.y - lordA.y, player.x - lordA.x)
+              projectilesRef.current.push({
+                x: lordA.x,
+                y: lordA.y,
+                radius: 8,
+                vx: Math.cos(angleToPlayer) * 5,
+                vy: Math.sin(angleToPlayer) * 5,
+                damage: 12,
+                color: "#3b82f6",
+                isEnemyProjectile: true,
+              })
+              playSound(500, 0.15, "square")
+            }
+
+            //  LORD B: STUN FIELD (every 3s) 
+            lordB.stunTimer += deltaTime
+            if (lordB.stunTimer >= 3000) {
+              lordB.stunTimer = 0
+
+              // Check if player is in stun field
+              const stunRadius = 150
+              const stunDx = player.x - lordB.x
+              const stunDy = player.y - lordB.y
+              const stunDist = Math.sqrt(stunDx * stunDx + stunDy * stunDy)
+
+              if (stunDist < stunRadius + player.radius) {
+                // Stun player for 6s (360 frames)
+                // A simple approach -  slow the player
+                player.invincibleTime = Math.max(player.invincibleTime, 360)
+                addScreenShake(15)
+                addFloatingText(player.x, player.y - 30, "STUNNED!", "#a855f7", 24)
+                chickenHitSound()
+              }
+
+              playSound(300, 0.3, "sawtooth")
+            }
+
+            //  COLLISION WITH PLAYER (melee) 
+            const distA = Math.sqrt((player.x - lordA.x) ** 2 + (player.y - lordA.y) ** 2)
+            const distB = Math.sqrt((player.x - lordB.x) ** 2 + (player.y - lordB.y) ** 2)
+            const lordRadius = 30
+
+            if ((distA < player.radius + lordRadius || distB < player.radius + lordRadius) && player.invincibleTime <= 0 && !player.shield) {
+              player.health -= 15
+              player.invincibleTime = 60
+              chickenHitSound()
+              addScreenShake(10)
+              addFloatingText(player.x, player.y - 30, "-15", "#ff0000", 20)
+
+              if (player.health <= 0) {
+                chickenDeathSound()
+                gameStateRef.current = "gameOver"
+                setGameState("gameOver")
+                setFinalScore(scoreRef.current)
+                setFinalKillCount(killCountRef.current)
+                setFinalWave(waveRef.current)
+              }
+            }
+
+            //  TRANSITION TO PHASE 3: total HP < 400 
+            if (lordA.health + lordB.health < 400) {
+              console.log("[HIVE] Phase 2 → Phase 3 transition (not yet implemented)")
+              boss.hivePhase = 3
             }
           }
+          
 
           break
         }
@@ -3334,30 +3483,24 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       setFinalWave(waveRef.current)
     }
 
-       // Update projectiles and check enemy collision
+        // Update projectiles and check enemy collision
     projectilesRef.current = projectilesRef.current.filter((proj) => {
       if (proj.dead) return false
 
-
-            //  LEVIATHAN WAVE ( collision + kick) 
-        
+      //  LEVIATHAN WAVE (collision + kick) 
       if (proj.isLeviathanWave) {
         proj.waveAge = (proj.waveAge || 0) + deltaTime
 
-        // Age out
-        if (proj.waveAge >= (proj.waveMaxAge || 5500)) {
+        if (proj.waveAge >= (proj.waveMaxAge || 3500)) {
           return false
         }
 
-        // The wave expands over time (matches visual)
-        const waveMaxAge = proj.waveMaxAge || 5500
-        const waveProgress = Math.min(proj.waveAge / waveMaxAge, 4)  // cap at 4x expansion
+        const waveMaxAge = proj.waveMaxAge || 3500
+        const waveProgress = Math.min(proj.waveAge / waveMaxAge, 1)
         const currentRadius = proj.radius * (1 + waveProgress * 3.5)
 
-        // Skip if player is invincible or shielded
         if (player.invincibleTime > 0) return true
 
-        // Collision check with EXPANDED radius
         const waveDx = proj.x - player.x
         const waveDy = proj.y - player.y
         const waveDist = Math.sqrt(waveDx * waveDx + waveDy * waveDy)
@@ -3370,7 +3513,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             addScreenShake(40)
             addFloatingText(player.x, player.y - 40, "-50", "#ff0000", 32)
 
-            // Massive kickback — to opposite side of map
             const pushAngle = Math.atan2(waveDy, waveDx)
             const mapDiagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
             const kickDistance = mapDiagonal * 1.2
@@ -3378,7 +3520,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             player.x += Math.cos(pushAngle) * kickDistance
             player.y += Math.sin(pushAngle) * kickDistance
 
-            // Clamp to canvas
             player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
             player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
 
@@ -3395,13 +3536,44 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
               setFinalWave(waveRef.current)
             }
           }
-          return false  // consume wave
+          return false
         }
 
-        return true  // keep wave alive
+        return true
       }
 
+      //  HIVE PHASE 2: PLAYER PROJECTILES HIT LORDS 
+      {
+        const hiveBoss = bossRef.current
+        if (
+          hiveBoss &&
+          hiveBoss.hivePhase === 2 &&
+          hiveBoss.hiveLordA &&
+          hiveBoss.hiveLordB &&
+          !proj.isEnemyProjectile
+        ) {
+          const lordA = hiveBoss.hiveLordA
+          const lordB = hiveBoss.hiveLordB
+          const lordRadius = 30
 
+          const dA = Math.sqrt((proj.x - lordA.x) ** 2 + (proj.y - lordA.y) ** 2)
+          const dB = Math.sqrt((proj.x - lordB.x) ** 2 + (proj.y - lordB.y) ** 2)
+
+          const shieldReduction = 0.5
+
+          if (dA < proj.radius + lordRadius) {
+            lordA.health -= proj.damage * shieldReduction
+            createParticles(proj.x, proj.y, "#3b82f6")
+            return false
+          }
+
+          if (dB < proj.radius + lordRadius) {
+            lordB.health -= proj.damage
+            createParticles(proj.x, proj.y, "#22c55e")
+            return false
+          }
+        }
+      }
 
       // Move projectile (ONCE, for both player and enemy)
       proj.x += proj.vx
@@ -3436,10 +3608,10 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
               setFinalWave(waveRef.current)
             }
           }
-          return false // projectile consumed
+          return false
         }
 
-        return true // keep flying
+        return true
       }
 
       //  PLAYER PROJECTILE: check boss 
@@ -3453,78 +3625,56 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           ? bdist < proj.explosionRadius + boss.radius
           : bdist < proj.radius + boss.radius
 
-       
-if (bossHit) {
-  // VOID LEVIATHAN: vulnerable only during zigzag
-  if (
-    boss.type === "voidLeviathan" &&
-    boss.leviathanPhase !== "zigzag"
-  ) {
-    // Absorb the projectile without dealing damage
-    createParticles(proj.x, proj.y, "#a855f7")
-    playSound(300, 0.08, "sine")
+        if (bossHit) {
+          // Armored boss: damage armor first
+          if (boss.isArmored && boss.armor !== undefined && boss.armor > 0) {
+            boss.armor -= proj.damage
+            createParticles(proj.x, proj.y, "#94a3b8")
 
-    if (!proj.piercing) {
-      proj.dead = true
-      return false
-    }
-  } else {
-    // If armored, damage armor first
-    if (boss.isArmored && boss.armor !== undefined && boss.armor > 0) {
-      boss.armor -= proj.damage
-      createParticles(proj.x, proj.y, "#94a3b8")
+            if (boss.armor <= 0) {
+              boss.armor = 0
+              boss.isArmored = false
+              addFloatingText(boss.x, boss.y - 50, "ARMOR BROKEN!", "#fbbf24", 28)
+              addScreenShake(20)
+              playSound(150, 0.5, "sawtooth")
+            }
+          } else {
+            boss.health -= proj.damage
+          }
 
-      if (boss.armor <= 0) {
-        boss.armor = 0
-        boss.isArmored = false
-        addFloatingText(boss.x, boss.y - 50, "ARMOR BROKEN!", "#fbbf24", 28)
-        addScreenShake(20)
-        playSound(150, 0.5, "sawtooth")
+          eggSplashSound()
+          createParticles(boss.x, boss.y, "#ff4444")
+          addFloatingText(boss.x, boss.y - 30, `-${proj.damage}`, "#ff9999", 18)
+          addScreenShake(4)
+
+          if (proj.explosive) {
+            createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+            playSound(150, 0.2, "sawtooth")
+            addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
+          }
+
+          if (boss.health <= 0) {
+            enemyDeadSound()
+            scoreRef.current += 500
+            setScore(scoreRef.current)
+            killCountRef.current += 1
+            setKillCount(killCountRef.current)
+            createParticles(boss.x, boss.y, "#ff0000")
+            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+            addScreenShake(15)
+            for (let p = 0; p < 3; p++) {
+              spawnWeaponPowerUp(boss.x + (Math.random() - 0.5) * 80, boss.y + (Math.random() - 0.5) * 80)
+            }
+            bossRef.current = null
+            lastBossWaveRef.current = waveRef.current
+          }
+
+          if (!proj.piercing) {
+            proj.dead = true
+            return false
+          }
+        }
       }
-    } else {
-      boss.health -= proj.damage
-    }
-
-    eggSplashSound()
-    createParticles(boss.x, boss.y, "#ff4444")
-    addFloatingText(boss.x, boss.y - 30, `-${proj.damage}`, "#ff9999", 18)
-    addScreenShake(4)
-
-    if (proj.explosive) {
-      createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
-      playSound(150, 0.2, "sawtooth")
-      addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
-    }
-
-    if (boss.health <= 0) {
-      enemyDeadSound()
-      scoreRef.current += 500
-      setScore(scoreRef.current)
-      killCountRef.current += 1
-      setKillCount(killCountRef.current)
-      createParticles(boss.x, boss.y, "#ff0000")
-      addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-
-      addScreenShake(15)
-
-      for (let p = 0; p < 3; p++) {
-        spawnWeaponPowerUp(
-          boss.x + (Math.random() - 0.5) * 80,
-          boss.y + (Math.random() - 0.5) * 80
-        )
-      }
-
-      bossRef.current = null
-      lastBossWaveRef.current = waveRef.current
-    }
-
-    if (!proj.piercing) {
-      proj.dead = true
-      return false
-    }
-  }
-}}
-
 
       //  PLAYER PROJECTILE: check enemies 
       const enemiesToDamage: Enemy[] = []
@@ -10110,6 +10260,153 @@ ctx.stroke()
         ctx.lineCap = "butt"
 
         ctx.restore()
+
+        // PHASE 2: HIVE LORDS
+        if (boss.hivePhase === 2 && boss.hiveLordA && boss.hiveLordB) {
+          const lordA = boss.hiveLordA
+          const lordB = boss.hiveLordB
+          const lordRadius = 30
+
+          //  LORD A (Shield, blue) 
+          ctx.save()
+          ctx.translate(lordA.x, lordA.y)
+
+          // Shield dome (always active)
+          const shieldPulse = 0.5 + Math.sin(t / 200) * 0.5
+          const shieldGrad = ctx.createRadialGradient(0, 0, lordRadius, 0, 0, lordRadius * 2)
+          shieldGrad.addColorStop(0, `rgba(100, 150, 255, ${0.1 + shieldPulse * 0.1})`)
+          shieldGrad.addColorStop(0.7, `rgba(59, 130, 246, ${0.15 + shieldPulse * 0.1})`)
+          shieldGrad.addColorStop(1, "rgba(100, 150, 255, 0)")
+          ctx.fillStyle = shieldGrad
+          ctx.beginPath()
+          ctx.arc(0, 0, lordRadius * 2, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Shield border
+          ctx.strokeStyle = `rgba(147, 197, 253, ${0.5 + shieldPulse * 0.3})`
+          ctx.lineWidth = 2
+          ctx.setLineDash([8, 6])
+          ctx.lineDashOffset = -t / 40
+          ctx.beginPath()
+          ctx.arc(0, 0, lordRadius * 1.9, 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          // Body
+          const bodyGradA = ctx.createRadialGradient(
+            -lordRadius * 0.3, -lordRadius * 0.3, lordRadius * 0.1,
+            0, 0, lordRadius
+          )
+          bodyGradA.addColorStop(0, "#3b82f6")
+          bodyGradA.addColorStop(0.5, "#1e3a8a")
+          bodyGradA.addColorStop(1, "#0c1e4a")
+
+          ctx.fillStyle = bodyGradA
+          ctx.strokeStyle = "#0c1e4a"
+          ctx.lineWidth = 3
+          ctx.beginPath()
+          ctx.arc(0, 0, lordRadius, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+
+          // 1 eye (cyclops)
+          ctx.fillStyle = "#0a0015"
+          ctx.beginPath()
+          ctx.arc(0, -lordRadius * 0.1, lordRadius * 0.3, 0, Math.PI * 2)
+          ctx.fill()
+
+          ctx.shadowColor = "#00ffff"
+          ctx.shadowBlur = 15
+          ctx.fillStyle = "#00ffff"
+          ctx.beginPath()
+          ctx.arc(0, -lordRadius * 0.1, lordRadius * 0.15, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.shadowBlur = 0
+
+          // HP bar
+          const hpPercentA = lordA.health / lordA.maxHealth
+          ctx.fillStyle = "#1e293b"
+          ctx.fillRect(-lordRadius, -lordRadius - 20, lordRadius * 2, 5)
+          ctx.fillStyle = "#3b82f6"
+          ctx.fillRect(-lordRadius, -lordRadius - 20, lordRadius * 2 * hpPercentA, 5)
+
+          ctx.restore()
+
+          // LORD B (Healer, green) 
+          ctx.save()
+          ctx.translate(lordB.x, lordB.y)
+
+          // Heal aura (if active)
+          if (lordB.isHealing) {
+            const healPulse = 0.5 + Math.sin(t / 150) * 0.5
+            const healGrad = ctx.createRadialGradient(0, 0, lordRadius, 0, 0, lordRadius * 2.5)
+            healGrad.addColorStop(0, `rgba(34, 197, 94, ${0.15 + healPulse * 0.1})`)
+            healGrad.addColorStop(0.7, `rgba(22, 163, 74, ${0.1 + healPulse * 0.05})`)
+            healGrad.addColorStop(1, "rgba(34, 197, 94, 0)")
+            ctx.fillStyle = healGrad
+            ctx.beginPath()
+            ctx.arc(0, 0, lordRadius * 2.5, 0, Math.PI * 2)
+            ctx.fill()
+
+            // Heal particles
+            for (let i = 0; i < 6; i++) {
+              const pa = t / 300 + (i / 6) * Math.PI * 2
+              const pd = lordRadius * (1.5 + Math.sin(t / 200 + i) * 0.3)
+              const px = Math.cos(pa) * pd
+              const py = Math.sin(pa) * pd
+
+              ctx.fillStyle = `rgba(34, 197, 94, ${0.5 + Math.sin(t / 100 + i) * 0.3})`
+              ctx.beginPath()
+              ctx.arc(px, py, 3, 0, Math.PI * 2)
+              ctx.fill()
+            }
+          }
+
+          // Body
+          const bodyGradB = ctx.createRadialGradient(
+            -lordRadius * 0.3, -lordRadius * 0.3, lordRadius * 0.1,
+            0, 0, lordRadius
+          )
+          bodyGradB.addColorStop(0, "#22c55e")
+          bodyGradB.addColorStop(0.5, "#166534")
+          bodyGradB.addColorStop(1, "#0a2e1a")
+
+          ctx.fillStyle = bodyGradB
+          ctx.strokeStyle = "#0a2e1a"
+          ctx.lineWidth = 3
+          ctx.beginPath()
+          ctx.arc(0, 0, lordRadius, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+
+          // 2 eyes
+          for (const side of [-1, 1]) {
+            const ex = side * lordRadius * 0.3
+            const ey = -lordRadius * 0.1
+
+            ctx.fillStyle = "#0a0015"
+            ctx.beginPath()
+            ctx.arc(ex, ey, lordRadius * 0.2, 0, Math.PI * 2)
+            ctx.fill()
+
+            ctx.shadowColor = "#22ff22"
+            ctx.shadowBlur = 12
+            ctx.fillStyle = "#22ff22"
+            ctx.beginPath()
+            ctx.arc(ex, ey, lordRadius * 0.1, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.shadowBlur = 0
+          }
+
+          // HP bar
+          const hpPercentB = lordB.health / lordB.maxHealth
+          ctx.fillStyle = "#1e293b"
+          ctx.fillRect(-lordRadius, -lordRadius - 20, lordRadius * 2, 5)
+          ctx.fillStyle = "#22c55e"
+          ctx.fillRect(-lordRadius, -lordRadius - 20, lordRadius * 2 * hpPercentB, 5)
+
+          ctx.restore()
+        }
       }
 
 
