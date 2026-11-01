@@ -6,206 +6,22 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Volume2, VolumeX } from "lucide-react"
 
-const DIFFICULTY_SCALING = {
-  SPEED_INCREASE_PER_30S: 0.1,
-  SPAWN_FREQUENCY_DECREASE_PER_30S: 200,
-  MIN_SPAWN_INTERVAL: 2000,
-  MAX_ENEMIES_BASE: 15,
-  MAX_ENEMIES_INCREASE_PER_30S: 3,
-  GROUP_SIZE_BASE: 2,
-  GROUP_SIZE_INCREASE_PER_30S: 1,
-  MAX_GROUP_SIZE: 8,
-  TANK_SPAWN_CHANCE: 0.15,
-  POWER_UP_EARLY_INTERVAL: 6000,
-  POWER_UP_LATE_INTERVAL: 12000,
-  POWER_UP_TRANSITION_TIME: 180, // 3 minutes
-}
-
-type GameObject = {
-  x: number
-  y: number
-  radius: number
-}
-
-type Player = GameObject & {
-  health: number
-  maxHealth: number
-  speed: number
-  shootCooldown: number
-  weaponType: "basic" | "doubleYolk" | "scrambled" | "hardBoiled" | "explosive" | "golden"
-  weaponTime: number
-  shield: boolean
-  shieldTime: number
-  chargeCooldown: number
-  stunCooldown: number
-  isCharging: boolean
-  chargeDistance: number
-  chargeDirection: { x: number; y: number }  
-  chargeReady: boolean                        
-  invincibleTime: number
-}
-
-type Enemy = GameObject & {
-  speed: number
-  health: number
-  maxHealth: number
-  groupId: number
-  type: "grunt" | "tank" | "leech" | "splitter" | "blinker"
-  blinkerTimer?: number
-  healTimer?: number
-  stunned?: boolean // Added for stun ability
-  stunnedTime?: number // Added for stun ability
-  teleportCooldown?: number // Added for blinker behavior
-  alienType?: string // Added for more specific behavior
-  color?: string // Added for particle color
-  hitFlash?: number // For hit flash effect
-  contactCooldown?: number // Prevents repeated contact effects while separated
-}
-
-
-type Boss = GameObject & {
-  health: number
-  maxHealth: number
-  type:
-    | "alienMouse"
-    | "alienBumblebee"
-    | "alienOctopus"
-    | "alienMantis"
-    | "abductor"
-    | "queenXenoHen"
-    | "devourer"
-    | "theButcher"
-    | "voidReaper"
-    | "plagueBringer"
-    | "ironTyrant"
-    | "voidLeviathan"
-    | "theHive"
-    | "omegaPrime"
-
-  // Common 
-  speed: number
-  spawnTimer?: number       
-  phase?: number           
-
-  // queenXenoHen 
-  shootTimer?: number       
-  buffRadius?: number       
-
-  //  devourer / theButcher / alienMouse / voidLeviathan 
-  chargeDirection?: { x: number; y: number }  
-
-  // voidReaper 
-  combatTimer?: number     
-  healTimer?: number        
-  blinkTimer?: number       
-  reaperShootTimer?: number 
-  isHealing?: boolean      
-
-  //  plagueBringer 
-  auraRadius?: number       
-  plagueTimer?: number     
-
-  //  ironTyrant 
-  armor?: number            
-  maxArmor?: number        
-  isArmored?: boolean       
-
-  //  alienMouse 
-  attackState?: string      
-  attackTimer?: number      
-  attackCooldown?: number   
-  dashDirX?: number         
-  dashDirY?: number         
-  dashIsFeint?: boolean    
-  burstDashCount?: number   
-
-  //  voidLeviathan 
-  leviathanPhase?: "forceField" | "zigzag" | "uroboros"  
-  leviathanPhaseTimer?: number  
-  leviathanWhipTimer?: number    
-  leviathanDashCount?: number    
-  leviathanHealTimer?: number   
-  leviathanWaveTimer?: number
-  leviathanTrail?: { x: number; y: number }[]   
-  leviathanHeading?: number
-  leviathanBurstTimer?: number
-  leviathanTurnTimer?: number
-  leviathanWaveCount?: number
-leviathanWaveSequenceTimer?: number
-
-// The Hive
-  hivePhase?: 1 | 2 | 3 | 4
-  hiveAttackTimer?: number
-  hiveAttackChoice?: number
-  // Phase 2 — 2 Hive Lords
-hiveLordA?: { x: number; y: number; health: number; maxHealth: number; shootTimer: number }
-hiveLordB?: { x: number; y: number; health: number; maxHealth: number; stunTimer: number;
-   healTimer: number; isHealing: boolean }
-hivePhase2Timer?: number
-
-}
-
-type FlyingSaucer = GameObject & {
-  speed: number
-  health: number
-  direction: number
-  bobOffset: number
-}
-
-type Projectile = GameObject & {
-  vx: number
-  vy: number
-  damage: number
-  piercing?: boolean
-  explosive?: boolean
-  explosionRadius?: number
-  color?: string
-  dead?: boolean
-  isEnemyProjectile?: boolean
-  isVoidSlash?: boolean
-  isVoidOrb?: boolean
-  isLeviathanWave?: boolean
-  waveAngle?: number
-  waveScaleX?: number
-  waveScaleY?: number
-  waveAge?: number
-  waveMaxAge?: number
-}
-
-type PowerUp = GameObject & {
-  type:
-    | "doubleYolk"
-    | "scrambled"
-    | "hardBoiled"
-    | "explosive"
-    | "golden"
-    | "shield"
-    | "health"
-    | "speedBoost"
-    | "charge" 
-  lifetime: number
-}
-
-type Particle = {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  life: number
-  color: string
-}
-
-type FloatingText = {
-  x: number
-  y: number
-  text: string
-  color: string
-  life: number
-  fontSize: number // Added fontSize
-  velocity: { x: number; y: number } // Added velocity
-}
-
-type GameState = "menu" | "playing" | "gameOver"
+import type {
+  GameObject,
+  Player,
+  Enemy,
+  EnemyType,
+  FlyingSaucer,
+  Boss,
+  BossType,
+  Projectile,
+  PowerUp,
+  PowerUpType,
+  Particle,
+  FloatingText,
+  GameState,
+} from "@/lib/game/types"
+import { DIFFICULTY_SCALING, ALIEN_COLORS } from "@/lib/game/constants"
 
 export function ChickenAlienGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -11284,21 +11100,8 @@ const gameLoop: GameLoopFn = (currentTime: number) => {
     setJoystickPos({ x: 0, y: 0 })
   }
 
-  const getAlienColor = (type: Enemy["type"]): string => {
-    switch (type) {
-      case "grunt":
-        return "#00ff00"
-      case "tank":
-        return "#00aa00"
-      case "leech":
-        return "#ff00ff"
-      case "splitter":
-        return "#ffff00"
-      case "blinker":
-        return "#00ffff"
-      default:
-        return "#00ff00"
-    }
+  const getAlienColor = (type: EnemyType): string => {
+    return ALIEN_COLORS[type] ?? "#00ff00"
   }
 
   // Moved the startGame and restartGame functions to the end of the `useEffect` hook and then removed the duplicated declarations

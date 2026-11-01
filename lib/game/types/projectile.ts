@@ -12,6 +12,8 @@ export type Projectile = GameObject & {
   color?: string
   dead?: boolean
   isEnemyProjectile?: boolean
+  isVoidSlash?: boolean
+  isVoidOrb?: boolean
 
   // Void Leviathan wave
   isLeviathanWave?: boolean
