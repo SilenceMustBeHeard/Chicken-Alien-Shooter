@@ -1,4 +1,3 @@
-// lib/game/types/projectile.ts
 
 import type { GameObject } from "./player"
 
