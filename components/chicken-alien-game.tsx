@@ -5,6 +5,16 @@ import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Volume2, VolumeX } from "lucide-react"
+import { createProjectileSpawner } from "@/lib/game/context/impl/create-projectile-spawner"
+import { createEnemySpawner } from "@/lib/game/context/impl/create-enemy-spawner"
+import { createParticleSpawner } from "@/lib/game/context/impl/create-particle-spawner"
+import { createFloatingTextSpawner } from "@/lib/game/context/impl/create-floating-text-spawner"
+import { createScreenShake } from "@/lib/game/context/impl/create-screen-shake"
+import { createAudioSystem } from "@/lib/game/context/impl/create-audio-system"
+import { createUIController } from "@/lib/game/context/impl/create-ui-controller"
+import { createBossContext } from "@/lib/game/context/impl/create-boss-context"
+
+import { getBossBehavior } from "@/lib/game/bosses"
 
 import type {
   GameObject,
