@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Volume2, VolumeX } from "lucide-react"
 import { createProjectileSpawner } from "@/lib/game/context/impl/create-projectile-spawner"
@@ -43,6 +43,11 @@ export function ChickenAlienGame() {
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [finalWave, setFinalWave] = useState(0)
+    const soundEnabledRef = useRef(soundEnabled)
+
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled
+  }, [soundEnabled])
 
   // Touch controls state
   const [joystickActive, setJoystickActive] = useState(false)
@@ -76,6 +81,55 @@ export function ChickenAlienGame() {
   const gameTimeRef = useRef(0)
   const animationIdRef = useRef<number | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
+  const getAlienColor = (type: EnemyType): string => {
+    return ALIEN_COLORS[type] ?? "#00ff00"
+  }
+  // Game context (abstractions) 
+   const gameContext = useMemo(() => {
+    const projectiles = createProjectileSpawner(projectilesRef)
+    const enemies = createEnemySpawner(
+      enemiesRef,
+      canvasRef.current?.width ?? 800,
+      canvasRef.current?.height ?? 600,
+      getAlienColor,
+    )
+    const particles = createParticleSpawner(particlesRef)
+    const floatingTexts = createFloatingTextSpawner(floatingTextsRef)
+    const screenShake = createScreenShake(screenShakeRef)
+    const audio = createAudioSystem({
+      audioContextRef,
+      isEnabledRef: soundEnabledRef,
+    })
+    const ui = createUIController({
+      setGameState,
+      setScore,
+      setKillCount,
+      setFinalScore,
+      setFinalKillCount,
+      setFinalWave,
+      gameStateRef,
+    })
+
+    return {
+      projectiles,
+      enemies,
+      particles,
+      floatingTexts,
+      screenShake,
+      audio,
+      ui,
+    }
+  }, [
+    projectilesRef,
+    enemiesRef,
+    particlesRef,
+    floatingTextsRef,
+    screenShakeRef,
+    audioContextRef,
+    gameStateRef,
+    canvasRef,
+  ])
+
   // Effect 1: Detect mobile
   useEffect(() => {
     setIsMobile("ontouchstart" in window)
@@ -1257,132 +1311,55 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
   
         // Alien Mouse 
-
-               case "alienMouse": {
-          if (boss.spawnTimer === undefined) boss.spawnTimer = 0
-          boss.spawnTimer += deltaTime
-
-          // State initialization
-          if (boss.attackState === undefined) boss.attackState = "stalk"
-          if (boss.attackTimer === undefined) boss.attackTimer = 0
-          if (boss.attackCooldown === undefined) boss.attackCooldown = 1500
-          if (boss.dashDirX === undefined) boss.dashDirX = 0
-          if (boss.dashDirY === undefined) boss.dashDirY = 0
-          if (boss.dashIsFeint === undefined) boss.dashIsFeint = false
-
-          const dx = player.x - boss.x
-          const dy = player.y - boss.y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          const angle = Math.atan2(dy, dx)
-
-          const state = boss.attackState as string
-          boss.attackTimer += deltaTime
-
-          // STALK — chase player for 2-3s, then attack
-
-          if (state === "stalk") {
-            boss.attackCooldown -= deltaTime
-
-            // Chase at 2× speed
-            boss.x += Math.cos(angle) * boss.speed * 3
-            boss.y += Math.sin(angle) * boss.speed * 3
-
-            // After cooldown (2-3s), attack
-            if (boss.attackCooldown <= 0) {
-              boss.attackTimer = 0
-              boss.attackState = "dashCharge"
-              playSound(800, 0.1, "square")
-            }
-          }
-
-          // DASH CHARGE — 200ms warning
-          else if (state === "dashCharge") {
-            boss.x += Math.cos(angle) * boss.speed * 0.3
-            boss.y += Math.sin(angle) * boss.speed * 0.3
-
-            if (boss.attackTimer >= 200) {
-              boss.attackTimer = 0
-              boss.attackState = "dashChase"
-              playSound(400, 0.15, "sawtooth")
-            }
-          }
-
-          // DASH CHASE — chase player at 5× speed for 3-4s
-
-          else if (state === "dashChase") {
-            boss.x += Math.cos(angle) * boss.speed * 5
-            boss.y += Math.sin(angle) * boss.speed * 5
-
-            // Collision check
-            if (
-              dist < player.radius + boss.radius &&
-              player.invincibleTime <= 0 &&
-              !player.shield
-            ) {
-              player.health -= 10
-              player.invincibleTime = 60
-              chickenHitSound()
-              addScreenShake(8)
-              addFloatingText(player.x, player.y - 25, "-10", "#c084fc", 20)
-
-              const pushAngle = Math.atan2(dy, dx)
-              player.x += Math.cos(pushAngle) * 60
-              player.y += Math.sin(pushAngle) * 60
-
-              createParticles(boss.x, boss.y, "#a855f7")
-
-              if (player.health <= 0) {
-                chickenDeathSound()
-                gameStateRef.current = "gameOver"
-                setGameState("gameOver")
-                setFinalScore(scoreRef.current)
-                setFinalKillCount(killCountRef.current)
-                setFinalWave(waveRef.current)
+        case "alienMouse": {
+          const behavior = getBossBehavior("alienMouse")
+          const bossCtx = createBossContext({
+            boss,
+            player,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            deltaTime,
+            bossTime: gameTimeRef.current,
+            enemiesRef,
+            projectilesRef,
+            getWave: () => waveRef.current,
+            killBoss: () => {
+              const behavior = getBossBehavior(boss.type)
+              bossRef.current = null
+              lastBossWaveRef.current = waveRef.current
+              addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+              addScreenShake(15)
+              playSound(200, 0.5, "sawtooth")
+              scoreRef.current += 500
+              setScore(scoreRef.current)
+              killCountRef.current += 1
+              setKillCount(killCountRef.current)
+              for (let p = 0; p < 3; p++) {
+                spawnWeaponPowerUp(
+                  boss.x + (Math.random() - 0.5) * 80,
+                  boss.y + (Math.random() - 0.5) * 80,
+                )
               }
-            }
-
-            // After 3-4s, stop and stun
-            if (boss.attackTimer >= 3500) {
-              boss.attackTimer = 0
-              boss.attackState = "stun"
-              playSound(300, 0.3, "triangle")
-            }
-          }
-
-          
-          // STUN — 200ms, immobile, vulnerable
-
-          else if (state === "stun") {
-            // Don't move. Player can shoot freely.
-            if (boss.attackTimer >= 200) {
-              boss.attackTimer = 0
-
-              // Pick random escape direction (away from player)
-              const escapeAngle = angle + Math.PI + (Math.random() - 0.5) * 1.2
-              boss.dashDirX = Math.cos(escapeAngle)
-              boss.dashDirY = Math.sin(escapeAngle)
-
-              boss.attackState = "escape"
-              playSound(600, 0.2, "sine")
-            }
-          }
-
-          // ESCAPE — 2s, flee at 6× speed in random direction
-          else if (state === "escape") {
-            boss.x += boss.dashDirX * boss.speed * 10
-            boss.y += boss.dashDirY * boss.speed * 10
-
-            // Clamp to canvas
-            boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
-            boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
-
-            if (boss.attackTimer >= 2000) {
-              boss.attackTimer = 0
-              boss.attackCooldown = 2000 + Math.random() * 1000  // 2-3s before next stalk attack
-              boss.attackState = "stalk"
-            }
-          }
-
+            },
+            damagePlayer: (amount, source) => {
+              if (player.invincibleTime <= 0 && !player.shield) {
+                player.health -= amount
+                player.invincibleTime = 60
+                chickenHitSound()
+              }
+            },
+            healPlayer: (amount) => {
+              player.health = Math.min(player.maxHealth, player.health + amount)
+            },
+            projectiles: gameContext.projectiles,
+            enemies: gameContext.enemies,
+            particles: gameContext.particles,
+            floatingTexts: gameContext.floatingTexts,
+            screenShake: gameContext.screenShake,
+            audio: gameContext.audio,
+            ui: gameContext.ui,
+          })
+          behavior.update(boss, bossCtx)
           break
         }
 
@@ -3875,448 +3852,10 @@ case "charge":
       // Start of boss drawing 
 
       // boss Alien Mouse
-         
-                  if (boss.type === "alienMouse") {
-          const r = boss.radius
-          const t = bossTime
-          const bx = boss.x
-          const by = boss.y
-
-          //  ATTACK STATE 
-          const alienState = String(boss.attackState ?? "stalk")
-          const attackTimer = boss.attackTimer ?? 0
-
-          const isChargingDash = alienState === "dashCharge"
-          const isDashing = alienState === "dash"
-          const isFeint = alienState === "feint"
-          const isBurstCharging = alienState === "burstCharge"
-          const isBursting = alienState === "burstWave"
-          const isRecovery = alienState === "recovery"
-
-          //  HP-BASED COLOR 
-          const hpPercent = boss.health / boss.maxHealth
-          const isLowHP = hpPercent < 0.5
-          const isCriticalHP = hpPercent < 0.25
-
-          //  ANIMATION TIMING 
-          const breathPulse = 1 + Math.sin(t / 180) * 0.05
-          const tailWave = Math.sin(t / 145)
-          const earWave = Math.sin(t / 260) * 0.1
-
-          // Charge squash / dash stretch
-          const chargeProgress = isChargingDash ? Math.min(attackTimer / 500, 1) : 0
-          const squash = isChargingDash ? 1 - chargeProgress * 0.12 : 1
-          const stretch = isDashing ? 1.15 : 1
-
-          // Blink animation (every 3.5s, 150ms)
-          const blinkCycle = t % 3500
-          const isBlinking = blinkCycle > 3350
-
-          // Recovery wobble
-          const recoveryWobble = isRecovery ? Math.sin(t / 80) * 0.08 : 0
-
-          //  LOOK DIRECTION 
-          const lookDir = angleToPlayer > -Math.PI / 2 && angleToPlayer < Math.PI / 2 ? 1 : -1
-          const headShift = lookDir * r * 0.08
-          const headTilt = lookDir * 0.08
-          const pupilShiftX = lookDir * r * 0.06
-
-          //  AURA 
-          ctx.save()
-          ctx.globalCompositeOperation = "lighter"
-
-          const auraColor = isCriticalHP
-            ? { r: 255, g: 30, b: 30 }
-            : isLowHP
-              ? { r: 200, g: 50, b: 180 }
-              : { r: 149, g: 18, b: 205 }
-
-          const aura = ctx.createRadialGradient(bx, by, r * 0.3, bx, by, r * 1.70)
-          aura.addColorStop(0, `rgba(${auraColor.r}, ${auraColor.g}, ${auraColor.b}, 0.65)`)
-          aura.addColorStop(0.55, `rgba(${auraColor.r + 20}, ${auraColor.g + 60}, ${auraColor.b + 20}, 0.55)`)
-          aura.addColorStop(1, `rgba(${auraColor.r + 30}, ${auraColor.g + 70}, ${auraColor.b + 20}, 0.6)`)
-
-          ctx.fillStyle = aura
-          ctx.beginPath()
-          ctx.arc(bx, by, r * 1.70, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Orbiting particles
-          for (let i = 0; i < 6; i++) {
-            const angle = t / 700 + (i * Math.PI) / 3
-            const orbit = r * (1.20 + Math.sin(t / 250 + i) * 0.08)
-            const px = bx + Math.cos(angle) * orbit
-            const py = by + Math.sin(angle) * orbit * 0.7
-            ctx.fillStyle = i % 2 === 0 ? "#e879f9" : "#818cf8"
-            ctx.globalAlpha = 0.55 + Math.sin(t / 100 + i) * 0.3
-            ctx.beginPath()
-            ctx.arc(px, py, r * 0.035, 0, Math.PI * 2)
-            ctx.fill()
-          }
-          ctx.globalAlpha = 1
-          ctx.restore()
-
-          //  TAIL 
-          const tailStartX = bx - r * 0.75
-          const tailStartY = by + r * 0.35
-
-          const tailPoints = []
-          for (let i = 0; i <= 12; i++) {
-            const p = i / 12
-            const x = tailStartX - p * r * 1.5
-            const y = tailStartY + Math.sin(p * Math.PI * 2 + tailWave) * r * 0.35 + p * r * 0.15
-            tailPoints.push({ x, y })
-          }
-
-          ctx.beginPath()
-          tailPoints.forEach((p, i) => {
-            if (i === 0) ctx.moveTo(p.x, p.y)
-            else ctx.lineTo(p.x, p.y)
-          })
-          ctx.strokeStyle = "#124d90"
-          ctx.lineWidth = r * 0.24
-          ctx.lineCap = "round"
-          ctx.lineJoin = "round"
-          ctx.stroke()
-
-          const tailGrad = ctx.createLinearGradient(tailStartX, 0, tailStartX - r * 1.5, 0)
-          tailGrad.addColorStop(0, "#a78bfa")
-          tailGrad.addColorStop(0.5, "#7c3aed")
-          tailGrad.addColorStop(1, "#4c1d95")
-          ctx.beginPath()
-          tailPoints.forEach((p, i) => {
-            if (i === 0) ctx.moveTo(p.x, p.y)
-            else ctx.lineTo(p.x, p.y)
-          })
-          ctx.strokeStyle = tailGrad
-          ctx.lineWidth = r * 0.14
-          ctx.stroke()
-
-          const tailTip = tailPoints[tailPoints.length - 1]
-          ctx.shadowColor = "#e879f9"
-          ctx.shadowBlur = 18
-          ctx.fillStyle = "#f0abfc"
-          ctx.beginPath()
-          ctx.arc(tailTip.x, tailTip.y, r * 0.12, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.shadowBlur = 0
-
-          //  BODY (with squash/stretch)  //
-          ctx.save()
-
-          const bodyScaleX = squash / stretch
-          const bodyScaleY = squash * stretch
-
-          ctx.translate(bx, by + r * 0.15)
-          ctx.scale(bodyScaleX, bodyScaleY)
-          ctx.translate(-bx, -(by + r * 0.15))
-
-          // Body shadow
-          ctx.fillStyle = "#1e0838"
-          ctx.beginPath()
-          ctx.ellipse(bx, by + r * 0.6, r * 0.95, r * 0.5, 0, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Body
-          const bodyGrad = ctx.createRadialGradient(
-            bx - r * 0.3, by, r * 0.1,
-            bx, by + r * 0.15, r * 1.2
-          )
-          bodyGrad.addColorStop(0, "#ddd6fe")
-          bodyGrad.addColorStop(0.4, "#a78bfa")
-          bodyGrad.addColorStop(0.75, "#7c3aed")
-          bodyGrad.addColorStop(1, "#4c1d95")
-
-          ctx.fillStyle = bodyGrad
-          ctx.strokeStyle = "#2e1065"
-          ctx.lineWidth = r * 0.065
-
-          ctx.beginPath()
-          ctx.ellipse(bx, by + r * 0.15, r * 0.95, r * 0.62, -0.08, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-
-          // Armor plates
-          ctx.fillStyle = "#6d28d9"
-          ctx.strokeStyle = "#a78bfa"
-          ctx.lineWidth = r * 0.02
-
-          for (let i = 0; i < 3; i++) {
-            const px = bx - r * 0.4 + i * r * 0.35
-            const py = by - r * 0.35 + i * r * 0.04
-
-            ctx.beginPath()
-            ctx.moveTo(px - r * 0.12, py)
-            ctx.lineTo(px, py - r * 0.12)
-            ctx.lineTo(px + r * 0.12, py)
-            ctx.lineTo(px, py + r * 0.08)
-            ctx.closePath()
-            ctx.fill()
-            ctx.stroke()
-          }
-
-          // Glow cracks
-          ctx.save()
-          ctx.globalCompositeOperation = "lighter"
-          ctx.strokeStyle = "#f0abfc"
-          ctx.shadowColor = "#e879f9"
-          ctx.shadowBlur = 8
-          ctx.lineWidth = r * 0.02
-          ctx.lineCap = "round"
-          ctx.beginPath()
-          ctx.moveTo(bx - r * 0.5, by + r * 0.15)
-          ctx.lineTo(bx - r * 0.15, by + r * 0.1)
-          ctx.moveTo(bx + r * 0.1, by + r * 0.3)
-          ctx.lineTo(bx + r * 0.45, by + r * 0.25)
-          ctx.stroke()
-          ctx.restore()
-
-          ctx.restore() // end body squash/stretch
-
-          //  LEGS (hovering)  
-          ctx.lineCap = "round"
-
-          for (let i = 0; i < 4; i++) {
-            const side = i < 2 ? -1 : 1
-            const idx = i % 2
-            const baseX = bx + side * (r * 0.3 + idx * r * 0.35)
-            const baseY = by + r * 0.5
-
-            const hover = Math.sin(t / 200 + i * 0.8) * r * 0.08
-            const length = r * 0.35
-
-            ctx.strokeStyle = "#7c3aed"
-            ctx.lineWidth = r * 0.09
-            ctx.beginPath()
-            ctx.moveTo(baseX, baseY)
-            ctx.lineTo(baseX + side * r * 0.1, baseY + length + hover)
-            ctx.stroke()
-
-            // Anti-gravity ring
-            ctx.strokeStyle = "rgba(232, 121, 249, 0.6)"
-            ctx.lineWidth = r * 0.03
-            const ringY = baseY + length + hover + r * 0.15
-            const ringScale = 1 + Math.sin(t / 150 + i) * 0.2
-            ctx.beginPath()
-            ctx.ellipse(baseX + side * r * 0.1, ringY, r * 0.12 * ringScale, r * 0.04 * ringScale, 0, 0, Math.PI * 2)
-            ctx.stroke()
-          }
-          ctx.lineCap = "butt"
-
-          //  HEAD  
-          const headBaseY = by - r * 0.55 + recoveryWobble
-
-          ctx.save()
-          ctx.translate(bx, headBaseY)
-          ctx.rotate(headTilt)
-          ctx.translate(-bx, -headBaseY)
-
-          // Ears
-          for (const side of [-1, 1]) {
-            ctx.save()
-            ctx.translate(bx + side * r * 0.45, headBaseY - r * 0.35)
-            ctx.rotate(side * earWave)
-
-            // Charge: ears stand up (less rotation, more vertical)
-            const earTilt = isChargingDash ? side * 0.1 : side * earWave
-
-            ctx.fillStyle = "#3b0764"
-            ctx.strokeStyle = "#6d28d9"
-            ctx.lineWidth = r * 0.04
-            ctx.beginPath()
-            ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2)
-            ctx.fill()
-            ctx.stroke()
-
-            ctx.fillStyle = "#ec4899"
-            ctx.beginPath()
-            ctx.arc(side * r * 0.05, 0, r * 0.28, 0, Math.PI * 2)
-            ctx.fill()
-
-            ctx.strokeStyle = "#f0abfc"
-            ctx.lineWidth = r * 0.02
-            ctx.beginPath()
-            ctx.arc(side * r * 0.05, -r * 0.05, r * 0.2, 0, Math.PI * 2)
-            ctx.stroke()
-
-            ctx.restore()
-          }
-
-          // Head shape (with breath)
-          const headCenterX = bx + headShift
-          const headCenterY = headBaseY
-
-          ctx.save()
-          ctx.translate(headCenterX, headCenterY)
-          ctx.scale(breathPulse, breathPulse)
-          ctx.translate(-headCenterX, -headCenterY)
-
-          // Head shadow
-          ctx.fillStyle = "#1e0838"
-          ctx.beginPath()
-          ctx.ellipse(headCenterX, headCenterY + r * 0.05, r * 0.6, r * 0.58, 0, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Head
-          const headGrad = ctx.createRadialGradient(
-            headCenterX - r * 0.2, headCenterY - r * 0.2, r * 0.05,
-            headCenterX, headCenterY, r * 0.7
-          )
-          headGrad.addColorStop(0, "#ddd6fe")
-          headGrad.addColorStop(0.4, "#a78bfa")
-          headGrad.addColorStop(0.75, "#7c3aed")
-          headGrad.addColorStop(1, "#4c1d95")
-
-          ctx.fillStyle = headGrad
-          ctx.strokeStyle = "#2e1065"
-          ctx.lineWidth = r * 0.05
-
-          ctx.beginPath()
-          ctx.ellipse(headCenterX, headCenterY, r * 0.62, r * 0.58, 0, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-
-          // Snout
-          ctx.fillStyle = "#c4b5fd"
-          ctx.beginPath()
-          ctx.ellipse(headCenterX, headCenterY + r * 0.42, r * 0.32, r * 0.28, 0, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-
-          // Nose
-          ctx.fillStyle = "#f472b6"
-          ctx.beginPath()
-          ctx.ellipse(headCenterX, headCenterY + r * 0.62, r * 0.08, r * 0.06, 0, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.strokeStyle = "#831843"
-          ctx.lineWidth = r * 0.015
-          ctx.stroke()
-
-          //  EYES (with blink + charge glow)  
-          const chargeGlow = isChargingDash ? 12 + chargeProgress * 20 : 0
-          const baseEyeGlow = 14 + Math.sin(t / 110) * 7
-          const eyeGlow = Math.max(baseEyeGlow, chargeGlow)
-
-          for (const side of [-1, 1]) {
-            const ex = headCenterX + side * r * 0.2
-            const ey = headCenterY - r * 0.1
-
-            if (isBlinking) {
-              // Closed eye (line)
-              ctx.strokeStyle = "#170524"
-              ctx.lineWidth = r * 0.04
-              ctx.lineCap = "round"
-              ctx.beginPath()
-              ctx.moveTo(ex - r * 0.14, ey)
-              ctx.lineTo(ex + r * 0.14, ey)
-              ctx.stroke()
-              ctx.lineCap = "butt"
-            } else {
-              // Socket
-              ctx.fillStyle = "#170524"
-              ctx.beginPath()
-              ctx.ellipse(ex, ey, r * 0.14, r * 0.17, side * 0.1, 0, Math.PI * 2)
-              ctx.fill()
-
-              // Pupil
-              ctx.shadowColor = "#ff00cc"
-              ctx.shadowBlur = eyeGlow
-              ctx.fillStyle = "#ff006e"
-              ctx.beginPath()
-              ctx.arc(ex + pupilShiftX, ey + r * 0.05, r * 0.08, 0, Math.PI * 2)
-              ctx.fill()
-              ctx.shadowBlur = 0
-
-              // Shine
-              ctx.fillStyle = "#ffffff"
-              ctx.beginPath()
-              ctx.arc(ex + pupilShiftX + r * 0.02, ey + r * 0.02, r * 0.03, 0, Math.PI * 2)
-              ctx.fill()
-            }
-          }
-
-          // Whiskers
-          const whiskerWave = Math.sin(t / 180) * r * 0.04
-          ctx.lineCap = "round"
-
-          for (const side of [-1, 1]) {
-            for (let i = 0; i < 3; i++) {
-              const startX = headCenterX + side * r * 0.22
-              const startY = headCenterY + r * (0.35 + i * 0.08)
-              const endX = headCenterX + side * r * (1.05 + (i % 2) * 0.1)
-              const endY = startY + (i - 1) * r * 0.18 + whiskerWave * side
-
-              ctx.strokeStyle = i === 1 ? "#e879f9" : "#c4b5fd"
-              ctx.lineWidth = r * (i === 1 ? 0.018 : 0.013)
-
-              ctx.beginPath()
-              ctx.moveTo(startX, startY)
-              ctx.quadraticCurveTo(
-                headCenterX + side * r * 0.7,
-                startY + (i - 1) * r * 0.1,
-                endX,
-                endY
-              )
-              ctx.stroke()
-            }
-          }
-          ctx.lineCap = "butt"
-
-          // Mouth
-          ctx.fillStyle = "#10051b"
-          ctx.beginPath()
-          ctx.ellipse(headCenterX, headCenterY + r * 0.74, r * 0.12, r * 0.06, 0, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Fangs
-          ctx.fillStyle = "#ffffff"
-          ctx.beginPath()
-          ctx.moveTo(headCenterX - r * 0.08, headCenterY + r * 0.7)
-          ctx.lineTo(headCenterX - r * 0.05, headCenterY + r * 0.8)
-          ctx.lineTo(headCenterX - r * 0.02, headCenterY + r * 0.7)
-          ctx.closePath()
-          ctx.fill()
-
-          ctx.beginPath()
-          ctx.moveTo(headCenterX + r * 0.08, headCenterY + r * 0.7)
-          ctx.lineTo(headCenterX + r * 0.05, headCenterY + r * 0.8)
-          ctx.lineTo(headCenterX + r * 0.02, headCenterY + r * 0.7)
-          ctx.closePath()
-          ctx.fill()
-
-          ctx.restore() // head scale
-          ctx.restore() // head tilt
-
-          //  RECOVERY: dizzy stars  
-          if (isRecovery) {
-            ctx.save()
-            for (let i = 0; i < 4; i++) {
-              const starAngle = t / 200 + (i / 4) * Math.PI * 2
-              const starRadius = r * 0.7
-              const sx = bx + Math.cos(starAngle) * starRadius
-              const sy = headBaseY - r * 0.8 + Math.sin(starAngle) * r * 0.2
-
-              ctx.fillStyle = "#fbbf24"
-              ctx.shadowColor = "#fbbf24"
-              ctx.shadowBlur = 8
-
-              // 4-point star
-              ctx.beginPath()
-              ctx.moveTo(sx, sy - r * 0.08)
-              ctx.lineTo(sx + r * 0.03, sy - r * 0.02)
-              ctx.lineTo(sx + r * 0.08, sy)
-              ctx.lineTo(sx + r * 0.03, sy + r * 0.02)
-              ctx.lineTo(sx, sy + r * 0.08)
-              ctx.lineTo(sx - r * 0.03, sy + r * 0.02)
-              ctx.lineTo(sx - r * 0.08, sy)
-              ctx.lineTo(sx - r * 0.03, sy - r * 0.02)
-              ctx.closePath()
-              ctx.fill()
-              ctx.shadowBlur = 0
-            }
-            ctx.restore()
-          }
-        
+               if (boss.type === "alienMouse") {
+        const behavior = getBossBehavior("alienMouse")
+        behavior.draw(ctx, boss, bossTime, playerRef.current!)
+      
       
 
         // boss Alien Bumblebee
@@ -11110,10 +10649,7 @@ const gameLoop: GameLoopFn = (currentTime: number) => {
     setJoystickPos({ x: 0, y: 0 })
   }
 
-  const getAlienColor = (type: EnemyType): string => {
-    return ALIEN_COLORS[type] ?? "#00ff00"
-  }
-
+ 
   // Moved the startGame and restartGame functions to the end of the `useEffect` hook and then removed the duplicated declarations
   // Moved the handleMouseMove, handleMouseDown, handleMouseUp, and handleTouchMove functions inside the useEffect hook
 
