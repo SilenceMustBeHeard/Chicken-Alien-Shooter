@@ -648,8 +648,8 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
    const spawnBoss = (canvas: HTMLCanvasElement) => {
     const bossTypes: Boss["type"][] = [
      // "theHive",
+     "alienBumblebee",
       "alienMouse",
-      "alienBumblebee",
       "alienOctopus",
       "alienMantis",
       "abductor",
@@ -1365,110 +1365,58 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
 // Alien Bumblebee
 
-                case "alienBumblebee": {
-          if (boss.spawnTimer === undefined) boss.spawnTimer = 0
-          boss.spawnTimer += deltaTime
-
-          // State initialization
-          if (boss.attackState === undefined) boss.attackState = "patrol"
-          if (boss.attackTimer === undefined) boss.attackTimer = 0
-          if (boss.attackCooldown === undefined) boss.attackCooldown = 4000
-          if (boss.dashDirX === undefined) boss.dashDirX = 0
-          if (boss.dashDirY === undefined) boss.dashDirY = 0
-
-          const dx = player.x - boss.x
-          const dy = player.y - boss.y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          const angle = Math.atan2(dy, dx)
-
-          const state = boss.attackState as string
-          boss.attackTimer += deltaTime
-
-          // PATROL — figure eight for 4s
-
-          if (state === "patrol") {
-            boss.attackCooldown -= deltaTime
-
-            // Figure eight patrol
-            boss.x += Math.sin(Date.now() / 500) * 2.5
-            boss.y += Math.cos(Date.now() / 700) * 1.5
-
-            // Clamp to canvas
-            boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
-            boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
-
-            // After 4s, windup
-            if (boss.attackCooldown <= 0) {
-              boss.attackTimer = 0
-              boss.attackState = "windup"
-              playSound(900, 0.1, "square")
-            }
-          }
-
-          // WINDUP — 400ms, shake in place
-
-          else if (state === "windup") {
-            // Shake in place
-            boss.x += (Math.random() - 0.5) * 3
-            boss.y += (Math.random() - 0.5) * 3
-
-            // Lock direction toward player
-            boss.dashDirX = Math.cos(angle)
-            boss.dashDirY = Math.sin(angle)
-
-            if (boss.attackTimer >= 400) {
-              boss.attackTimer = 0
-              boss.attackState = "dash"
-              playSound(600, 0.15, "sawtooth")
-            }
-          }
-
-          // DASH — 2000ms, fast lunge toward player
-
-          else if (state === "dash") {
-            boss.x += boss.dashDirX * boss.speed * 17
-            boss.y += boss.dashDirY * boss.speed * 17
-
-            // Collision check
-            if (
-              dist < player.radius + boss.radius &&
-              player.invincibleTime <= 0 &&
-              !player.shield
-            ) {
-              player.health -= 12
-              player.invincibleTime = 60
-              chickenHitSound()
-              addScreenShake(8)
-              addFloatingText(player.x, player.y - 25, "-12", "#facc15", 20)
-
-              const pushAngle = Math.atan2(dy, dx)
-              player.x += Math.cos(pushAngle) * 60
-              player.y += Math.sin(pushAngle) * 60
-
-              createParticles(boss.x, boss.y, "#facc15")
-
-              if (player.health <= 0) {
-                chickenDeathSound()
-                gameStateRef.current = "gameOver"
-                setGameState("gameOver")
-                setFinalScore(scoreRef.current)
-                setFinalKillCount(killCountRef.current)
-                setFinalWave(waveRef.current)
+                  case "alienBumblebee": {
+          const behavior = getBossBehavior("alienBumblebee")
+          const bossCtx = createBossContext({
+            boss,
+            player,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            deltaTime,
+            bossTime: gameTimeRef.current,
+            enemiesRef,
+            projectilesRef,
+            getWave: () => waveRef.current,
+            killBoss: () => {
+              bossRef.current = null
+              lastBossWaveRef.current = waveRef.current
+            },
+            damagePlayer: (amount, _source) => {
+              if (player.invincibleTime <= 0 && !player.shield) {
+                player.health -= amount
+                player.invincibleTime = 60
+                chickenHitSound()
               }
-            }
+            },
+            healPlayer: (amount) => {
+              player.health = Math.min(player.maxHealth, player.health + amount)
+            },
+            projectiles: gameContext.projectiles,
+            enemies: gameContext.enemies,
+            particles: gameContext.particles,
+            floatingTexts: gameContext.floatingTexts,
+            screenShake: gameContext.screenShake,
+            audio: gameContext.audio,
+            ui: gameContext.ui,
+          })
+          behavior.update(boss, bossCtx)
 
-            // Clamp to canvas
-            boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
-            boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
-
-            // After 2000ms, back to patrol
-            if (boss.attackTimer >= 2000) {
-              boss.attackTimer = 0
-              boss.attackCooldown = 4000
-              boss.attackState = "patrol"
+          // Rewards on death
+          if (!bossRef.current) {
+            scoreRef.current += 500
+            setScore(scoreRef.current)
+            killCountRef.current += 1
+            setKillCount(killCountRef.current)
+            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+            addScreenShake(15)
+            playSound(200, 0.5, "sawtooth")
+            for (let p = 0; p < 3; p++) {
+              spawnWeaponPowerUp(
+                boss.x + (Math.random() - 0.5) * 80,
+                boss.y + (Math.random() - 0.5) * 80,
+              )
             }
           }
-
           break
         }
 
@@ -3861,556 +3809,11 @@ case "charge":
         // boss Alien Bumblebee
 
          } else if (boss.type === "alienBumblebee") {
-        const t = bossTime
-        const r = boss.radius
-
-        //  ATTACK STATE 
-        const beeState = String(boss.attackState ?? "patrol")
-        const attackTimer = boss.attackTimer ?? 0
-        const isWindingUp = beeState === "windup"
-        const isDashing = beeState === "dash"
-
-        //  HP-BASED COLOR 
-        const hpPercent = boss.health / boss.maxHealth
-        const isLowHP = hpPercent < 0.5
-        const isCriticalHP = hpPercent < 0.25
-
-        //  ANIMATIONS 
-        const wingFlapSpeed = isWindingUp ? 10 : 30
-        const wingFlap = Math.sin(t / wingFlapSpeed)
-        const bodyBob = Math.sin(t / 220) * r * 0.025
-        const legTwitch = Math.sin(t / 75) * r * 0.025
-        const cx = boss.x
-        const cy = boss.y + bodyBob
-
-        // Blink animation
-        const blinkCycle = t % 3500
-        const isBlinking = blinkCycle > 3350
-
-        //  DASH TRAIL (behind boss) 
-        if (isDashing) {
-          ctx.save()
-          for (let i = 0; i < 5; i++) {
-            const trailOffset = i * r * 0.4
-            const tx = cx - (boss.dashDirX || 0) * trailOffset
-            const ty = cy - (boss.dashDirY || 0) * trailOffset
-
-            ctx.fillStyle = `rgba(250, 204, 21, ${0.5 - i * 0.1})`
-            ctx.beginPath()
-            ctx.arc(tx, ty, r * (0.35 - i * 0.06), 0, Math.PI * 2)
-            ctx.fill()
-          }
-          ctx.restore()
-
-          // Sparks
-          ctx.save()
-          for (let i = 0; i < 8; i++) {
-            const sparkAngle = (i / 8) * Math.PI * 2 + t / 100
-            const sparkDist = r * (0.5 + Math.sin(t / 50 + i) * 0.5)
-            const sx = cx + Math.cos(sparkAngle) * sparkDist
-            const sy = cy + Math.sin(sparkAngle) * sparkDist
-
-            ctx.fillStyle = "#facc15"
-            ctx.globalAlpha = 0.6
-            ctx.beginPath()
-            ctx.arc(sx, sy, 3, 0, Math.PI * 2)
-            ctx.fill()
-          }
-          ctx.restore()
+        const behavior = getBossBehavior("alienBumblebee")
+        const playerForDraw = playerRef.current
+        if (playerForDraw) {
+          behavior.draw(ctx, boss, bossTime, playerForDraw)
         }
-
-        //  WINDUP WARNING ───
-        if (isWindingUp) {
-          const progress = Math.min(attackTimer / 400, 1)
-
-          ctx.save()
-
-          // Pulsing warning ring
-          ctx.globalAlpha = 0.4 + progress * 0.5
-          ctx.strokeStyle = "#facc15"
-          ctx.lineWidth = 4
-          ctx.setLineDash([12, 8])
-          ctx.lineDashOffset = -t / 20
-          ctx.beginPath()
-          ctx.arc(cx, cy, r * (1.2 + progress * 0.6), 0, Math.PI * 2)
-          ctx.stroke()
-          ctx.setLineDash([])
-
-          // Direction arrow
-          const arrowLength = r * (1.5 + progress * 0.8)
-          ctx.globalAlpha = 0.7 + progress * 0.3
-          ctx.strokeStyle = "#fef08a"
-          ctx.lineWidth = 6
-          ctx.lineCap = "round"
-          ctx.beginPath()
-          ctx.moveTo(cx, cy)
-          ctx.lineTo(
-            cx + (boss.dashDirX || 0) * arrowLength,
-            cy + (boss.dashDirY || 0) * arrowLength
-          )
-          ctx.stroke()
-
-          // Arrowhead
-          const tipX = cx + (boss.dashDirX || 0) * arrowLength
-          const tipY = cy + (boss.dashDirY || 0) * arrowLength
-          const perpX = -(boss.dashDirY || 0)
-          const perpY = (boss.dashDirX || 0)
-
-          ctx.beginPath()
-          ctx.moveTo(tipX, tipY)
-          ctx.lineTo(
-            tipX - (boss.dashDirX || 0) * r * 0.3 + perpX * r * 0.18,
-            tipY - (boss.dashDirY || 0) * r * 0.3 + perpY * r * 0.18
-          )
-          ctx.moveTo(tipX, tipY)
-          ctx.lineTo(
-            tipX - (boss.dashDirX || 0) * r * 0.3 - perpX * r * 0.18,
-            tipY - (boss.dashDirY || 0) * r * 0.3 - perpY * r * 0.18
-          )
-          ctx.stroke()
-
-          ctx.lineCap = "butt"
-          ctx.restore()
-        }
-
-        ctx.save()
-
-        // WINGS
-
-        const drawWing = (side: number, outer: boolean) => {
-          ctx.save()
-
-          const wingX = cx + side * r * (outer ? 0.43 : 0.29)
-          const wingY = cy - r * 0.36
-          const wingLength = r * (outer ? 0.82 : 0.59)
-          const wingHeight = r * (outer ? 0.34 : 0.25)
-          const flap = wingFlap * (outer ? 0.25 : 0.19)
-
-          ctx.translate(wingX, wingY)
-          ctx.rotate(side * (outer ? 0.62 : 0.48) - side * flap)
-
-          // Wings glow more during windup/dash
-          const wingAlpha = isWindingUp ? 0.7 : (isDashing ? 0.6 : 1)
-
-          ctx.fillStyle = outer
-            ? `rgba(186, 230, 253, ${0.48 * wingAlpha})`
-            : `rgba(224, 242, 254, ${0.30 * wingAlpha})`
-
-          ctx.beginPath()
-          ctx.ellipse(
-            side * wingLength * 0.35,
-            -r * 0.04,
-            wingLength,
-            wingHeight,
-            side * 0.12,
-            0,
-            Math.PI * 2
-          )
-          ctx.fill()
-
-          ctx.strokeStyle = "rgba(147, 197, 253, 0.72)"
-          ctx.lineWidth = Math.max(1, r * 0.012)
-          ctx.stroke()
-
-          // Wing veins
-          ctx.strokeStyle = "rgba(96, 165, 250, 0.58)"
-          ctx.lineWidth = Math.max(0.8, r * 0.009)
-
-          for (let i = 0; i < 3; i++) {
-            const startX = side * wingLength * 0.08
-            const endX = side * wingLength * (0.38 + i * 0.22)
-
-            ctx.beginPath()
-            ctx.moveTo(startX, 0)
-            ctx.quadraticCurveTo(
-              endX * 0.45,
-              -wingHeight * 0.9,
-              endX,
-              wingHeight * (i - 1) * 0.48
-            )
-            ctx.stroke()
-          }
-
-          ctx.restore()
-        }
-
-        drawWing(-1, false)
-        drawWing(1, false)
-        drawWing(-1, true)
-        drawWing(1, true)
-
-        // SEGMENTED LEGS
-
-        ctx.lineCap = "round"
-        ctx.lineJoin = "round"
-
-        for (let i = 0; i < 3; i++) {
-          const legY = cy + r * (0.20 + i * 0.19)
-          const spread = r * (0.66 + i * 0.12)
-          const twitch = legTwitch * (i + 1) * 0.45
-
-          for (const side of [-1, 1]) {
-            ctx.strokeStyle = "#38200b"
-            ctx.lineWidth = Math.max(2, r * 0.055)
-
-            ctx.beginPath()
-            ctx.moveTo(cx + side * r * 0.43, legY)
-            ctx.quadraticCurveTo(
-              cx + side * r * 0.65,
-              legY + r * 0.08,
-              cx + side * spread + twitch,
-              legY + r * 0.25
-            )
-            ctx.lineTo(
-              cx + side * (spread + r * 0.09) + twitch,
-              legY + r * 0.39
-            )
-            ctx.stroke()
-
-            ctx.fillStyle = "#d6a329"
-            ctx.beginPath()
-            ctx.arc(
-              cx + side * spread + twitch,
-              legY + r * 0.25,
-              r * 0.035,
-              0,
-              Math.PI * 2
-            )
-            ctx.fill()
-          }
-        }
-
-        ctx.lineCap = "butt"
-
-        // LONGER STINGER
-
-        const stingerY = cy + r * 0.69
-
-        ctx.fillStyle = "#38200b"
-        ctx.beginPath()
-        ctx.moveTo(cx - r * 0.105, stingerY)
-        ctx.quadraticCurveTo(
-          cx,
-          stingerY + r * 0.04,
-          cx + r * 0.105,
-          stingerY
-        )
-        ctx.lineTo(cx, stingerY + r * 0.55)
-        ctx.closePath()
-        ctx.fill()
-
-        ctx.fillStyle = "#a16207"
-        ctx.beginPath()
-        ctx.moveTo(cx - r * 0.035, stingerY + r * 0.10)
-        ctx.lineTo(cx, stingerY + r * 0.48)
-        ctx.lineTo(cx + r * 0.035, stingerY + r * 0.10)
-        ctx.closePath()
-        ctx.fill()
-
-        const dropOffset = (t / 100) % 14
-
-        ctx.fillStyle = "#84cc16"
-        ctx.beginPath()
-        ctx.arc(
-          cx,
-          stingerY + r * 0.55 + dropOffset,
-          r * 0.035,
-          0,
-          Math.PI * 2
-        )
-        ctx.fill()
-
-        // FUZZY ABDOMEN (HP-based color)
-
-        ctx.fillStyle = "rgba(0, 0, 0, 0.22)"
-        ctx.beginPath()
-        ctx.ellipse(
-          cx,
-          cy + r * 0.89,
-          r * 0.73,
-          r * 0.12,
-          0,
-          0,
-          Math.PI * 2
-        )
-        ctx.fill()
-
-        const bodyGrad = ctx.createRadialGradient(
-          cx - r * 0.32,
-          cy - r * 0.35,
-          r * 0.08,
-          cx,
-          cy,
-          r * 1.12
-        )
-
-        bodyGrad.addColorStop(0, isCriticalHP ? "#ff9999" : isLowHP ? "#ffcc66" : "#fff9cf")
-        bodyGrad.addColorStop(0.35, isCriticalHP ? "#ff3333" : isLowHP ? "#ff9900" : "#facc15")
-        bodyGrad.addColorStop(0.75, isCriticalHP ? "#990000" : isLowHP ? "#cc6600" : "#eab308")
-        bodyGrad.addColorStop(1, isCriticalHP ? "#450000" : isLowHP ? "#663300" : "#92400e")
-
-        ctx.fillStyle = bodyGrad
-        ctx.beginPath()
-        ctx.ellipse(
-          cx,
-          cy,
-          r * 0.91,
-          r * 0.73,
-          0,
-          0,
-          Math.PI * 2
-        )
-        ctx.fill()
-
-        // Three horizontal black bands
-        ctx.save()
-        ctx.beginPath()
-        ctx.ellipse(
-          cx,
-          cy,
-          r * 0.91,
-          r * 0.73,
-          0,
-          0,
-          Math.PI * 2
-        )
-        ctx.clip()
-
-        ctx.fillStyle = "#1a120a"
-
-        for (let i = -1; i <= 1; i++) {
-          const stripeY = cy + i * r * 0.32
-
-          ctx.beginPath()
-          ctx.ellipse(
-            cx,
-            stripeY,
-            r * 1.0,
-            r * 0.14,
-            0,
-            0,
-            Math.PI * 2
-          )
-          ctx.fill()
-        }
-
-        ctx.restore()
-
-        // Abdomen outline
-        ctx.strokeStyle = "#8a5b16"
-        ctx.lineWidth = Math.max(1.5, r * 0.025)
-        ctx.beginPath()
-        ctx.ellipse(
-          cx,
-          cy,
-          r * 0.91,
-          r * 0.73,
-          0,
-          0,
-          Math.PI * 2
-        )
-        ctx.stroke()
-
-        // Fuzzy highlight
-        ctx.fillStyle = "rgba(255, 255, 210, 0.32)"
-        ctx.beginPath()
-        ctx.ellipse(
-          cx - r * 0.31,
-          cy - r * 0.30,
-          r * 0.29,
-          r * 0.17,
-          -0.4,
-          0,
-          Math.PI * 2
-        )
-        ctx.fill()
-
-        // HEAD
-        const headY = cy - r * 0.70
-        const headR = r * 0.48
-
-        const headGrad = ctx.createRadialGradient(
-          cx - headR * 0.32,
-          headY - headR * 0.38,
-          headR * 0.04,
-          cx,
-          headY,
-          headR * 1.2
-        )
-
-        headGrad.addColorStop(0, "#4b4538")
-        headGrad.addColorStop(0.55, "#24211d")
-        headGrad.addColorStop(1, "#090909")
-
-        ctx.fillStyle = headGrad
-        ctx.beginPath()
-        ctx.arc(cx, headY, headR, 0, Math.PI * 2)
-        ctx.fill()
-
-        ctx.strokeStyle = "#100d0a"
-        ctx.lineWidth = Math.max(1.5, r * 0.025)
-        ctx.stroke()
-
-        // Fuzz around head
-        ctx.strokeStyle = "rgba(220, 190, 125, 0.48)"
-        ctx.lineWidth = Math.max(0.8, r * 0.009)
-
-        for (let i = 0; i < 10; i++) {
-          const a = (i / 10) * Math.PI * 2
-          const x = cx + Math.cos(a) * headR * 0.93
-          const y = headY + Math.sin(a) * headR * 0.93
-
-          ctx.beginPath()
-          ctx.moveTo(x, y)
-          ctx.lineTo(
-            x + Math.cos(a) * r * 0.045,
-            y + Math.sin(a) * r * 0.045
-          )
-          ctx.stroke()
-        }
-
-        // COMPOUND EYES (with blink + charge glow)
-        for (const side of [-1, 1]) {
-          const eyeX = cx + side * r * 0.255
-          const eyeY = headY - r * 0.015
-          const eyeRX = r * 0.17
-          const eyeRY = r * 0.205
-
-          // Blink
-          if (isBlinking) {
-            ctx.strokeStyle = "#0a0000"
-            ctx.lineWidth = r * 0.05
-            ctx.lineCap = "round"
-            ctx.beginPath()
-            ctx.moveTo(eyeX - r * 0.15, eyeY)
-            ctx.lineTo(eyeX + r * 0.15, eyeY)
-            ctx.stroke()
-            ctx.lineCap = "butt"
-            continue
-          }
-
-          const eyeGrad = ctx.createRadialGradient(
-            eyeX - eyeRX * 0.35,
-            eyeY - eyeRY * 0.38,
-            r * 0.01,
-            eyeX,
-            eyeY,
-            eyeRY * 1.3
-          )
-
-          eyeGrad.addColorStop(0, "#ff9999")
-          eyeGrad.addColorStop(0.32, "#ef4444")
-          eyeGrad.addColorStop(0.72, "#b91c1c")
-          eyeGrad.addColorStop(1, "#450a0a")
-
-          // Glow (stronger during windup/dash)
-          ctx.save()
-          ctx.shadowColor = "#ff2222"
-          ctx.shadowBlur = isWindingUp ? r * 0.25 : (isDashing ? r * 0.2 : r * 0.12)
-
-          ctx.fillStyle = eyeGrad
-          ctx.beginPath()
-          ctx.ellipse(
-            eyeX,
-            eyeY,
-            eyeRX,
-            eyeRY,
-            side * 0.10,
-            0,
-            Math.PI * 2
-          )
-          ctx.fill()
-          ctx.restore()
-
-          ctx.strokeStyle = "#450a0a"
-          ctx.lineWidth = Math.max(1, r * 0.018)
-          ctx.stroke()
-
-          // Facets
-          ctx.strokeStyle = "rgba(255, 220, 220, 0.55)"
-          ctx.lineWidth = Math.max(0.7, r * 0.008)
-
-          for (let i = -1; i <= 1; i++) {
-            ctx.beginPath()
-            ctx.arc(
-              eyeX + i * eyeRX * 0.45,
-              eyeY,
-              r * 0.025,
-              0,
-              Math.PI * 2
-            )
-            ctx.stroke()
-          }
-
-          // Reflection
-          ctx.fillStyle = "#fff1f2"
-          ctx.beginPath()
-          ctx.arc(
-            eyeX - side * r * 0.045,
-            eyeY - r * 0.075,
-            r * 0.028,
-            0,
-            Math.PI * 2
-          )
-          ctx.fill()
-        }
-
-        // MANDIBLES
-
-        for (const side of [-1, 1]) {
-          ctx.fillStyle = "#342016"
-          ctx.strokeStyle = "#0c0805"
-          ctx.lineWidth = Math.max(0.8, r * 0.012)
-
-          ctx.beginPath()
-          ctx.moveTo(cx + side * r * 0.08, headY + r * 0.35)
-          ctx.lineTo(cx + side * r * 0.14, headY + r * 0.42)
-          ctx.lineTo(cx + side * r * 0.10, headY + r * 0.44)
-          ctx.lineTo(cx + side * r * 0.06, headY + r * 0.40)
-          ctx.closePath()
-          ctx.fill()
-          ctx.stroke()
-        }
-
-        // ANTENNAE
-
-        const antTwitch = Math.sin(t / 150) * r * 0.035
-
-        ctx.strokeStyle = "#21170f"
-        ctx.lineWidth = Math.max(2, r * 0.045)
-        ctx.lineCap = "round"
-
-        for (const side of [-1, 1]) {
-          const startX = cx + side * r * 0.19
-          const startY = headY - headR * 0.72
-          const tipX = cx + side * r * 0.48 + antTwitch * side
-          const tipY = headY - r * 0.95
-
-          ctx.beginPath()
-          ctx.moveTo(startX, startY)
-          ctx.quadraticCurveTo(
-            cx + side * r * 0.35,
-            headY - r * 0.78,
-            tipX,
-            tipY
-          )
-          ctx.stroke()
-
-          ctx.fillStyle = "#facc15"
-          ctx.beginPath()
-          ctx.arc(tipX, tipY, r * 0.075, 0, Math.PI * 2)
-          ctx.fill()
-
-          ctx.strokeStyle = "#a16207"
-          ctx.lineWidth = Math.max(1, r * 0.018)
-          ctx.stroke()
-
-          ctx.strokeStyle = "#21170f"
-          ctx.lineWidth = Math.max(2, r * 0.045)
-        }
-
-        ctx.lineCap = "butt"
-        ctx.restore()
       
       
       
