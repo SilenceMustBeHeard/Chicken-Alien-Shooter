@@ -4,14 +4,14 @@ import type { BossType } from "@/lib/game/types"
 import type { BossBehavior } from "./boss-behavior"
 
 import { alienMouseBehavior } from "../alien-mouse"
+import { alienBumblebeeBehavior } from "../alien-bumblebee"
 
 // Registry of all bosses in the game
 // Each boss is registered with its behavior
 //  which defines how it behaves in the game
 export const BOSS_REGISTRY: Record<BossType, BossBehavior> = {
   alienMouse: alienMouseBehavior,
-  // TODO: add remaining 13 bosses
-  alienBumblebee: alienMouseBehavior,  // placeholder
+  alienBumblebee: alienBumblebeeBehavior,
   alienOctopus: alienMouseBehavior,    // placeholder
   alienMantis: alienMouseBehavior,     // placeholder
   abductor: alienMouseBehavior,        // placeholder
