@@ -26,6 +26,18 @@ export type Boss = GameObject & {
   spawnTimer?: number
   phase?: number
 
+
+
+
+
+  // alienOctopus
+octopusGrabTimer?: number
+octopusGrabTargetX?: number
+octopusGrabTargetY?: number
+octopusGrabState?: "idle" | "windup" | "strike" | "retract"
+
+
+
   // queenXenoHen
   shootTimer?: number
   buffRadius?: number
