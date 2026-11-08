@@ -36,6 +36,17 @@ octopusGrabTargetX?: number
 octopusGrabTargetY?: number
 octopusGrabState?: "idle" | "windup" | "strike" | "retract"
 
+// alienMantis
+mantisState?: "stalk" | "windup" | "lunge" | "recovery"
+mantisAttackTimer?: number
+mantisStateTimer?: number
+mantisAttackAngle?: number
+mantisAttackProgress?: number
+mantisTargetX?: number
+mantisTargetY?: number
+mantisHasHit?: boolean
+mantisStalkTimer?: number
+
 
 
   // queenXenoHen
