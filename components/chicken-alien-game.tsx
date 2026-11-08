@@ -1474,13 +1474,60 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           break
         }
 
-        case "alienMantis":
-          // The mantis makes sharp lunges toward the chicken.
-          if (Math.sin(Date.now() / 900) > 0.7) {
-            boss.x += (player.x - boss.x) * 0.018
-            boss.y += (player.y - boss.y) * 0.018
+
+               case "alienMantis": {
+          const behavior = getBossBehavior("alienMantis")
+          const bossCtx = createBossContext({
+            boss,
+            player,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            deltaTime,
+            bossTime: gameTimeRef.current,
+            enemiesRef,
+            projectilesRef,
+            getWave: () => waveRef.current,
+            killBoss: () => {
+              bossRef.current = null
+              lastBossWaveRef.current = waveRef.current
+            },
+            damagePlayer: (amount, _source) => {
+              if (player.invincibleTime <= 0 && !player.shield) {
+                player.health -= amount
+                player.invincibleTime = 60
+                chickenHitSound()
+              }
+            },
+            healPlayer: (amount) => {
+              player.health = Math.min(player.maxHealth, player.health + amount)
+            },
+            projectiles: gameContext.projectiles,
+            enemies: gameContext.enemies,
+            particles: gameContext.particles,
+            floatingTexts: gameContext.floatingTexts,
+            screenShake: gameContext.screenShake,
+            audio: gameContext.audio,
+            ui: gameContext.ui,
+          })
+          behavior.update(boss, bossCtx)
+
+          if (!bossRef.current) {
+            scoreRef.current += 500
+            setScore(scoreRef.current)
+            killCountRef.current += 1
+            setKillCount(killCountRef.current)
+            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+            addScreenShake(15)
+            playSound(200, 0.5, "sawtooth")
+            for (let p = 0; p < 3; p++) {
+              spawnWeaponPowerUp(
+                boss.x + (Math.random() - 0.5) * 80,
+                boss.y + (Math.random() - 0.5) * 80,
+              )
+            }
           }
           break
+        }
         case "abductor":
           // Move to center then hover
           if (boss.y < canvas.height * 0.2) {
@@ -3883,442 +3930,13 @@ case "charge":
 
 
     // boss Alien Mantis
-      } else if (boss.type === "alienMantis") {
-        const r = boss.radius
-        const t = bossTime
-        const bx = boss.x
-        const by = boss.y
-        const pulse = 1 + Math.sin(t / 200) * 0.03
-        const sway = Math.sin(t / 300) * 0.06
-        const scytheSwing = Math.sin(t / 400) * 0.15
-        const wingFlap = Math.sin(t / 60) * 0.1
-        const eyeGlow = 10 + Math.sin(t / 130) * 6
-
-    
-        // AURA 
-        ctx.save()
-        ctx.globalCompositeOperation = "lighter"
-        const aura = ctx.createRadialGradient(bx, by, r * 0.3, bx, by, r * 1.7)
-        aura.addColorStop(0, "rgba(34, 197, 94, 0.22)")
-        aura.addColorStop(0.6, "rgba(74, 222, 128, 0.08)")
-        aura.addColorStop(1, "rgba(34, 197, 94, 0)")
-        ctx.fillStyle = aura
-        ctx.beginPath()
-        ctx.arc(bx, by, r * 1.7, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.restore()
-
+         } else if (boss.type === "alienMantis") {
+        const behavior = getBossBehavior("alienMantis")
+        const playerForDraw = playerRef.current
+        if (playerForDraw) {
+          behavior.draw(ctx, boss, bossTime, playerForDraw)
+        }
       
-        // WINGS 
-        ctx.save()
-        ctx.translate(bx, by + r * 0.1)
-        ctx.rotate(-0.4 + wingFlap)
-
-        const wingGradL = ctx.createLinearGradient(0, 0, -r * 1.4, -r * 0.5)
-        wingGradL.addColorStop(0, "rgba(134, 239, 172, 0.75)")
-        wingGradL.addColorStop(0.6, "rgba(74, 222, 128, 0.4)")
-        wingGradL.addColorStop(1, "rgba(22, 101, 52, 0.6)")
-
-        ctx.fillStyle = wingGradL
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.quadraticCurveTo(-r * 0.8, -r * 0.9, -r * 1.5, -r * 0.5)
-        ctx.quadraticCurveTo(-r * 1.2, r * 0.1, 0, r * 0.3)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#14532d"
-        ctx.lineWidth = 2
-        ctx.stroke()
-
-        // Wing veins
-        ctx.strokeStyle = "rgba(20, 83, 45, 0.5)"
-        ctx.lineWidth = 1.5
-        for (let i = 0; i < 4; i++) {
-          ctx.beginPath()
-          ctx.moveTo(0, 0)
-          ctx.lineTo(
-            -r * (0.4 + i * 0.25),
-            -r * (0.5 - i * 0.08)
-          )
-          ctx.stroke()
-        }
-        ctx.restore()
-
-        ctx.save()
-        ctx.translate(bx, by + r * 0.1)
-        ctx.rotate(0.4 - wingFlap)
-
-        const wingGradR = ctx.createLinearGradient(0, 0, r * 1.4, -r * 0.5)
-        wingGradR.addColorStop(0, "rgba(134, 239, 172, 0.75)")
-        wingGradR.addColorStop(0.6, "rgba(74, 222, 128, 0.4)")
-        wingGradR.addColorStop(1, "rgba(22, 101, 52, 0.6)")
-
-        ctx.fillStyle = wingGradR
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.quadraticCurveTo(r * 0.8, -r * 0.9, r * 1.5, -r * 0.5)
-        ctx.quadraticCurveTo(r * 1.2, r * 0.1, 0, r * 0.3)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#14532d"
-        ctx.lineWidth = 2
-        ctx.stroke()
-
-        ctx.strokeStyle = "rgba(20, 83, 45, 0.5)"
-        ctx.lineWidth = 1.5
-        for (let i = 0; i < 4; i++) {
-          ctx.beginPath()
-          ctx.moveTo(0, 0)
-          ctx.lineTo(
-            r * (0.4 + i * 0.25),
-            -r * (0.5 - i * 0.08)
-          )
-          ctx.stroke()
-        }
-        ctx.restore()
-
-     
-        // SCYTHE ARMS 
-     
-        // LEFT SCYTHE
-        ctx.save()
-        ctx.translate(bx - r * 0.4, by - r * 0.3)
-        ctx.rotate(scytheSwing)
-
-        // Upper arm segment
-        ctx.strokeStyle = "#166534"
-        ctx.lineWidth = r * 0.12
-        ctx.lineCap = "round"
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.lineTo(-r * 0.5, -r * 0.4)
-        ctx.stroke()
-
-        // Scythe blade (curved, sharp)
-        const scytheGradL = ctx.createLinearGradient(-r * 0.5, -r * 0.4, -r * 1.6, -r * 1.0)
-        scytheGradL.addColorStop(0, "#bbf7d0")
-        scytheGradL.addColorStop(0.5, "#86efac")
-        scytheGradL.addColorStop(1, "#14532d")
-
-        ctx.fillStyle = scytheGradL
-        ctx.beginPath()
-        ctx.moveTo(-r * 0.5, -r * 0.4)
-        ctx.quadraticCurveTo(-r * 1.0, -r * 1.3, -r * 1.7, -r * 0.6)
-        ctx.quadraticCurveTo(-r * 1.2, -r * 0.5, -r * 0.9, -r * 0.2)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#052e16"
-        ctx.lineWidth = 2.5
-        ctx.stroke()
-
-        // Scythe edge highlight
-        ctx.strokeStyle = "#dcfce7"
-        ctx.lineWidth = 1.5
-        ctx.beginPath()
-        ctx.moveTo(-r * 0.6, -r * 0.5)
-        ctx.quadraticCurveTo(-r * 1.0, -r * 1.1, -r * 1.5, -r * 0.7)
-        ctx.stroke()
-
-        // Barbed hook at tip
-        ctx.fillStyle = "#bbf7d0"
-        ctx.beginPath()
-        ctx.moveTo(-r * 1.7, -r * 0.6)
-        ctx.lineTo(-r * 1.9, -r * 0.75)
-        ctx.lineTo(-r * 1.75, -r * 0.55)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#052e16"
-        ctx.lineWidth = 1.5
-        ctx.stroke()
-
-        ctx.restore()
-
-        // RIGHT SCYTHE (mirror)
-        ctx.save()
-        ctx.translate(bx + r * 0.4, by - r * 0.3)
-        ctx.rotate(-scytheSwing)
-
-        ctx.strokeStyle = "#166534"
-        ctx.lineWidth = r * 0.12
-        ctx.lineCap = "round"
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.lineTo(r * 0.5, -r * 0.4)
-        ctx.stroke()
-
-        const scytheGradR = ctx.createLinearGradient(r * 0.5, -r * 0.4, r * 1.6, -r * 1.0)
-        scytheGradR.addColorStop(0, "#bbf7d0")
-        scytheGradR.addColorStop(0.5, "#86efac")
-        scytheGradR.addColorStop(1, "#14532d")
-
-        ctx.fillStyle = scytheGradR
-        ctx.beginPath()
-        ctx.moveTo(r * 0.5, -r * 0.4)
-        ctx.quadraticCurveTo(r * 1.0, -r * 1.3, r * 1.7, -r * 0.6)
-        ctx.quadraticCurveTo(r * 1.2, -r * 0.5, r * 0.9, -r * 0.2)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#052e16"
-        ctx.lineWidth = 2.5
-        ctx.stroke()
-
-        ctx.strokeStyle = "#dcfce7"
-        ctx.lineWidth = 1.5
-        ctx.beginPath()
-        ctx.moveTo(r * 0.6, -r * 0.5)
-        ctx.quadraticCurveTo(r * 1.0, -r * 1.1, r * 1.5, -r * 0.7)
-        ctx.stroke()
-
-        ctx.fillStyle = "#bbf7d0"
-        ctx.beginPath()
-        ctx.moveTo(r * 1.7, -r * 0.6)
-        ctx.lineTo(r * 1.9, -r * 0.75)
-        ctx.lineTo(r * 1.75, -r * 0.55)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#052e16"
-        ctx.lineWidth = 1.5
-        ctx.stroke()
-
-        ctx.restore()
-
-      
-        // BODY 
-       
-        ctx.save()
-        ctx.translate(bx + Math.sin(t / 200) * 3, by)  // subtle sway
-        ctx.scale(pulse, pulse)
-
-        // Thorax (upper body)
-        const thoraxGrad = ctx.createRadialGradient(
-          -r * 0.15, -r * 0.2, r * 0.05,
-          0, 0, r * 0.7
-        )
-        thoraxGrad.addColorStop(0, "#dcfce7")
-        thoraxGrad.addColorStop(0.4, "#86efac")
-        thoraxGrad.addColorStop(0.75, "#22c55e")
-        thoraxGrad.addColorStop(1, "#14532d")
-
-        ctx.fillStyle = thoraxGrad
-        ctx.beginPath()
-        ctx.ellipse(0, -r * 0.1, r * 0.55, r * 0.75, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "#052e16"
-        ctx.lineWidth = r * 0.045
-        ctx.stroke()
-
-        // Thorax armor plates
-        ctx.strokeStyle = "#166534"
-        ctx.lineWidth = r * 0.03
-        for (let i = 0; i < 3; i++) {
-          ctx.beginPath()
-          ctx.moveTo(-r * 0.45, -r * 0.4 + i * r * 0.3)
-          ctx.quadraticCurveTo(0, -r * 0.3 + i * r * 0.3, r * 0.45, -r * 0.4 + i * r * 0.3)
-          ctx.stroke()
-        }
-
-        // Abdomen (lower body, pointed)
-        const abdomenGrad = ctx.createRadialGradient(
-          -r * 0.1, r * 0.3, r * 0.05,
-          0, r * 0.5, r * 0.8
-        )
-        abdomenGrad.addColorStop(0, "#86efac")
-        abdomenGrad.addColorStop(0.5, "#22c55e")
-        abdomenGrad.addColorStop(1, "#14532d")
-
-        ctx.fillStyle = abdomenGrad
-        ctx.beginPath()
-        ctx.moveTo(-r * 0.45, r * 0.4)
-        ctx.quadraticCurveTo(-r * 0.3, r * 1.1, 0, r * 1.25)
-        ctx.quadraticCurveTo(r * 0.3, r * 1.1, r * 0.45, r * 0.4)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#052e16"
-        ctx.lineWidth = r * 0.04
-        ctx.stroke()
-
-        // Abdomen segments
-        ctx.strokeStyle = "#166534"
-        ctx.lineWidth = r * 0.025
-        for (let i = 0; i < 3; i++) {
-          ctx.beginPath()
-          ctx.moveTo(-r * 0.3 + i * r * 0.05, r * 0.6 + i * r * 0.18)
-          ctx.quadraticCurveTo(0, r * 0.65 + i * r * 0.18, r * 0.3 - i * r * 0.05, r * 0.6 + i * r * 0.18)
-          ctx.stroke()
-        }
-
-        // Abdomen tip (stinger)
-        ctx.fillStyle = "#bbf7d0"
-        ctx.beginPath()
-        ctx.moveTo(-r * 0.1, r * 1.2)
-        ctx.lineTo(0, r * 1.45)
-        ctx.lineTo(r * 0.1, r * 1.2)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#052e16"
-        ctx.lineWidth = 1.5
-        ctx.stroke()
-
-        ctx.restore()
-
-       
-        // LEGS 
-       
-        ctx.strokeStyle = "#166534"
-        ctx.lineWidth = r * 0.06
-        ctx.lineCap = "round"
-
-        for (let i = 0; i < 2; i++) {
-          const lx = bx + (i === 0 ? -r * 0.35 : r * 0.35)
-          const ly = by + r * 0.25
-          const legWave = Math.sin(t / 200 + i * Math.PI) * r * 0.05
-
-          // Leg
-          ctx.beginPath()
-          ctx.moveTo(lx, ly)
-          ctx.lineTo(lx + (i === 0 ? -r * 0.15 : r * 0.15), ly + r * 0.25)
-          ctx.lineTo(lx + (i === 0 ? -r * 0.25 : r * 0.25) + legWave, ly + r * 0.55)
-          ctx.stroke()
-        }
-        ctx.lineCap = "butt"
-
-        
-        // HEAD 
-      
-        const headY = by - r * 0.95
-        ctx.save()
-        ctx.translate(bx, headY)
-
-        // Head (triangle/diamond)
-        const headGrad = ctx.createRadialGradient(
-          -r * 0.1, -r * 0.1, r * 0.05,
-          0, 0, r * 0.55
-        )
-        headGrad.addColorStop(0, "#dcfce7")
-        headGrad.addColorStop(0.5, "#86efac")
-        headGrad.addColorStop(1, "#166534")
-
-        ctx.fillStyle = headGrad
-        ctx.beginPath()
-        ctx.moveTo(-r * 0.5, -r * 0.25)
-        ctx.lineTo(0, -r * 0.65)
-        ctx.lineTo(r * 0.5, -r * 0.25)
-        ctx.lineTo(r * 0.35, r * 0.25)
-        ctx.lineTo(0, r * 0.45)
-        ctx.lineTo(-r * 0.35, r * 0.25)
-        ctx.closePath()
-        ctx.fill()
-        ctx.strokeStyle = "#052e16"
-        ctx.lineWidth = r * 0.04
-        ctx.stroke()
-
-     
-        // EYES
-      
-        for (const side of [-1, 1]) {
-          const ex = side * r * 0.22
-          const ey = -r * 0.15
-
-          // Socket
-          ctx.fillStyle = "#170524"
-          ctx.beginPath()
-          ctx.ellipse(ex, ey, r * 0.20, r * 0.25, 0, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Glowing green iris
-          ctx.shadowColor = "#22c55e"
-          ctx.shadowBlur = eyeGlow
-          const eyeGrad = ctx.createRadialGradient(
-            ex - r * 0.04, ey - r * 0.04, r * 0.02,
-            ex, ey, r * 0.16
-          )
-          eyeGrad.addColorStop(0, "#ffffff")
-          eyeGrad.addColorStop(0.3, "#86efac")
-          eyeGrad.addColorStop(0.7, "#22c55e")
-          eyeGrad.addColorStop(1, "#14532d")
-
-          ctx.fillStyle = eyeGrad
-          ctx.beginPath()
-          ctx.ellipse(ex, ey, r * 0.15, r * 0.19, 0, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.shadowBlur = 0
-
-          // Compound facets (dots)
-          ctx.fillStyle = "rgba(5, 46, 22, 0.4)"
-          for (let fx = -1; fx <= 1; fx++) {
-            for (let fy = -1; fy <= 1; fy++) {
-              ctx.beginPath()
-              ctx.arc(ex + fx * r * 0.06, ey + fy * r * 0.07, r * 0.02, 0, Math.PI * 2)
-              ctx.fill()
-            }
-          }
-
-          // Reflection
-          ctx.fillStyle = "#ffffff"
-          ctx.beginPath()
-          ctx.arc(ex - r * 0.04, ey - r * 0.06, r * 0.03, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        // Mandibles (small pincers below head)
-        ctx.fillStyle = "#14532d"
-        ctx.beginPath()
-        ctx.moveTo(-r * 0.12, r * 0.35)
-        ctx.lineTo(-r * 0.2, r * 0.55)
-        ctx.lineTo(-r * 0.08, r * 0.45)
-        ctx.closePath()
-        ctx.fill()
-        ctx.beginPath()
-        ctx.moveTo(r * 0.12, r * 0.35)
-        ctx.lineTo(r * 0.2, r * 0.55)
-        ctx.lineTo(r * 0.08, r * 0.45)
-        ctx.closePath()
-        ctx.fill()
-
-        ctx.restore() // head
-
-      
-        // ANTENNAE 
-       
-        const antennaSway = Math.sin(t / 250) * r * 0.08
-        ctx.strokeStyle = "#166534"
-        ctx.lineWidth = r * 0.04
-        ctx.lineCap = "round"
-
-        // Left antenna
-        ctx.beginPath()
-        ctx.moveTo(bx - r * 0.15, headY - r * 0.5)
-        ctx.quadraticCurveTo(
-          bx - r * 0.4,
-          headY - r * 1.1,
-          bx - r * 0.6 + antennaSway,
-          headY - r * 1.5
-        )
-        ctx.stroke()
-
-        // Right antenna
-        ctx.beginPath()
-        ctx.moveTo(bx + r * 0.15, headY - r * 0.5)
-        ctx.quadraticCurveTo(
-          bx + r * 0.4,
-          headY - r * 1.1,
-          bx + r * 0.6 - antennaSway,
-          headY - r * 1.5
-        )
-        ctx.stroke()
-        ctx.lineCap = "butt"
-
-        // Antenna tips (glowing)
-        ctx.fillStyle = "#bbf7d0"
-        ctx.shadowColor = "#86efac"
-        ctx.shadowBlur = 8
-        ctx.beginPath()
-        ctx.arc(bx - r * 0.6 + antennaSway, headY - r * 1.5, r * 0.05, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.beginPath()
-        ctx.arc(bx + r * 0.6 - antennaSway, headY - r * 1.5, r * 0.05, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.shadowBlur = 0
       
 
 
