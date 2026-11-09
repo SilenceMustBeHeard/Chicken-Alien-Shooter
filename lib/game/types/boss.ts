@@ -47,6 +47,9 @@ mantisTargetY?: number
 mantisHasHit?: boolean
 mantisStalkTimer?: number
 
+// abductor
+abductorTargetY?: number
+
 
 
   // queenXenoHen

@@ -647,6 +647,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
    const spawnBoss = (canvas: HTMLCanvasElement) => {
     const bossTypes: Boss["type"][] = [
+      //"abductor",
      "alienMouse",
      "alienBumblebee",
       "alienOctopus",
@@ -1528,39 +1529,60 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           }
           break
         }
-        case "abductor":
-          // Move to center then hover
-          if (boss.y < canvas.height * 0.2) {
-            boss.y += boss.speed * 2
-          } else {
-            // Hover and spawn waves continuously
-            boss.x += Math.sin(Date.now() / 1000) * 2
-            boss.y += Math.cos(Date.now() / 1500) * 1
 
-            if (boss.spawnTimer !== undefined) {
-              boss.spawnTimer += deltaTime
-              if (boss.spawnTimer > 3000) {
-                // Spawn mini wave of aliens
-                for (let i = 0; i < 3; i++) {
-                  const angle = (Math.PI * 2 * i) / 3 + Date.now() / 1000
-                  enemiesRef.current.push({
-                    x: boss.x + Math.cos(angle) * 60,
-                    y: boss.y + Math.sin(angle) * 60,
-                    radius: 10,
-                    speed: 0.8,
-                    health: 2,
-                    maxHealth: 2,
-                    groupId: Date.now(),
-                    type: "grunt",
-                    alienType: "grunt",
-                    color: getAlienColor("grunt"),
-                  })
-                }
-                boss.spawnTimer = 0
+        case "abductor":
+         const behavior = getBossBehavior("abductor")
+          const bossCtx = createBossContext({
+            boss,
+            player,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            deltaTime,
+            bossTime: gameTimeRef.current,
+            enemiesRef,
+            projectilesRef,
+            getWave: () => waveRef.current,
+            killBoss: () => {
+              bossRef.current = null
+              lastBossWaveRef.current = waveRef.current
+            },
+            damagePlayer: (amount, _source) => {
+              if (player.invincibleTime <= 0 && !player.shield) {
+                player.health -= amount
+                player.invincibleTime = 60
+                chickenHitSound()
               }
+            },
+            healPlayer: (amount) => {
+              player.health = Math.min(player.maxHealth, player.health + amount)
+            },
+            projectiles: gameContext.projectiles,
+            enemies: gameContext.enemies,
+            particles: gameContext.particles,
+            floatingTexts: gameContext.floatingTexts,
+            screenShake: gameContext.screenShake,
+            audio: gameContext.audio,
+            ui: gameContext.ui,
+          })
+          behavior.update(boss, bossCtx)
+
+          if (!bossRef.current) {
+            scoreRef.current += 500
+            setScore(scoreRef.current)
+            killCountRef.current += 1
+            setKillCount(killCountRef.current)
+            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+            addScreenShake(15)
+            playSound(200, 0.5, "sawtooth")
+            for (let p = 0; p < 3; p++) {
+              spawnWeaponPowerUp(
+                boss.x + (Math.random() - 0.5) * 80,
+                boss.y + (Math.random() - 0.5) * 80,
+              )
             }
           }
           break
+        
 
              case "queenXenoHen":
           {
@@ -3942,242 +3964,14 @@ case "charge":
 
 
         // boss Alien Abductor
-        } else if (boss.type === "abductor") {
-        const r = boss.radius
-        const t = bossTime
-        const bx = boss.x
-        const by = boss.y
-        const hover = Math.sin(t / 400) * 6
-        const lightRotation = t / 500
-        const beamPulse = 0.6 + Math.sin(t / 200) * 0.2
-
-        ctx.save()
-        ctx.translate(bx, by + hover)
-
-      
-        // TRACTOR BEAM (going down, behind UFO)
-        
-        ctx.save()
-        ctx.globalCompositeOperation = "lighter"
-
-        const beamGrad = ctx.createLinearGradient(0, 0, 0, r * 4)
-        beamGrad.addColorStop(0, `rgba(0, 255, 200, ${beamPulse * 0.7})`)
-        beamGrad.addColorStop(0.4, `rgba(0, 255, 200, ${beamPulse * 0.35})`)
-        beamGrad.addColorStop(1, "rgba(0, 255, 200, 0.39)")
-
-        ctx.fillStyle = beamGrad
-        ctx.beginPath()
-        ctx.moveTo(-r * 0.5, r * 0.3)
-        ctx.lineTo(-r * 2, r * 4)
-        ctx.lineTo(r * 2, r * 4)
-        ctx.lineTo(r * 0.5, r * 0.3)
-        ctx.closePath()
-        ctx.fill()
-
-        // Beam rings (moving down)
-        const ringOffset = (t / 30) % (r * 3.5)
-        for (let i = 0; i < 3; i++) {
-          const ringY = r * 0.5 + ringOffset + i * r * 1.2
-          if (ringY > r * 3.5) continue
-
-          const ringWidth = r * (0.4 + (ringY / (r * 4)) * 1.5)
-          const ringAlpha = 0.6 - (ringY / (r * 4)) * 0.5
-
-          ctx.strokeStyle = `rgba(120, 255, 220, ${ringAlpha})`
-          ctx.lineWidth = 2
-          ctx.beginPath()
-          ctx.ellipse(0, ringY, ringWidth, ringWidth * 0.15, 0, 0, Math.PI * 2)
-          ctx.stroke()
+         // boss Alien Abductor
+           } else if (boss.type === "abductor") {
+        const behavior = getBossBehavior("abductor")
+        const playerForDraw = playerRef.current
+        if (playerForDraw) {
+          behavior.draw(ctx, boss, bossTime, playerForDraw)
         }
-
-        ctx.restore()
-
-    
-        // UFO SHADOW (on ground)
       
-        ctx.fillStyle = "rgba(16, 16, 16, 0.35)"
-        ctx.beginPath()
-        ctx.ellipse(0, r * 1.1, r * 1.1, r * 0.25, 0, 0, Math.PI * 2)
-        ctx.fill()
-
-      
-        // UFO BOTTOM HULL (metallic saucer)
-   
-        const hullGrad = ctx.createLinearGradient(0, -r * 0.2, 0, r * 0.6)
-        hullGrad.addColorStop(0, "#94a3b8")
-        hullGrad.addColorStop(0.4, "#64748b")
-        hullGrad.addColorStop(0.8, "#334155")
-        hullGrad.addColorStop(1, "#1e293b")
-
-        ctx.fillStyle = hullGrad
-        ctx.beginPath()
-        ctx.ellipse(0, r * 0.25, r * 1.3, r * 0.55, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "#0f172a"
-        ctx.lineWidth = r * 0.04
-        ctx.stroke()
-
-        // Bottom rim (dark)
-        ctx.fillStyle = "#0f172a"
-        ctx.beginPath()
-        ctx.ellipse(0, r * 0.35, r * 1.25, r * 0.45, 0, 0, Math.PI)
-        ctx.fill()
-
-        // Bottom panels (2 darker rings)
-        ctx.strokeStyle = "#1e293b"
-        ctx.lineWidth = r * 0.02
-        for (let i = 1; i <= 2; i++) {
-          ctx.beginPath()
-          ctx.ellipse(0, r * (0.3 + i * 0.1), r * (1.15 - i * 0.08), r * (0.35 - i * 0.05), 0, 0, Math.PI)
-          ctx.stroke()
-        }
-
-   
-        // UFO MIDDLE RIM (lights)
- 
-        ctx.fillStyle = "#475569"
-        ctx.beginPath()
-        ctx.ellipse(0, r * 0.05, r * 1.35, r * 0.28, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "#0f172a"
-        ctx.lineWidth = r * 0.03
-        ctx.stroke()
-
-        // Rotating lights around the rim
-        for (let i = 0; i < 10; i++) {
-          const angle = lightRotation + (i / 10) * Math.PI * 2
-          const lightX = Math.cos(angle) * r * 1.2
-          const lightY = Math.sin(angle) * r * 0.22 + r * 0.05
-
-          // Determine light color (alternating pattern)
-          const colorIndex = Math.floor((lightRotation * 2 + i) % 3)
-          let lightColor = "#00ffff"
-          let glowColor = "#00ffff"
-          if (colorIndex === 1) {
-            lightColor = "#ff00ff"
-            glowColor = "#ff00ff"
-          } else if (colorIndex === 2) {
-            lightColor = "#ffff00"
-            glowColor = "#ffff00"
-          }
-
-          // Only draw lights that are "visible" (front of the ellipse)
-          const isVisible = Math.sin(angle) > -0.5
-
-          if (isVisible) {
-            ctx.shadowBlur = 12
-            ctx.shadowColor = glowColor
-            ctx.fillStyle = lightColor
-            ctx.beginPath()
-            ctx.arc(lightX, lightY, r * 0.08, 0, Math.PI * 2)
-            ctx.fill()
-            ctx.shadowBlur = 0
-
-            // Bright center
-            ctx.fillStyle = "#ffffff"
-            ctx.beginPath()
-            ctx.arc(lightX - r * 0.02, lightY - r * 0.02, r * 0.03, 0, Math.PI * 2)
-            ctx.fill()
-          }
-        }
-
-     
-        // UFO DOME (glass, transparent)
-    
-        const domeGrad = ctx.createLinearGradient(0, -r * 0.9, 0, r * 0.1)
-        domeGrad.addColorStop(0, "rgba(186, 230, 253, 0.85)")
-        domeGrad.addColorStop(0.5, "rgba(125, 211, 252, 0.6)")
-        domeGrad.addColorStop(1, "rgba(56, 189, 248, 0.4)")
-
-        ctx.fillStyle = domeGrad
-        ctx.beginPath()
-        ctx.ellipse(0, -r * 0.15, r * 0.85, r * 0.7, 0, Math.PI, 0)
-        ctx.fill()
-        ctx.strokeStyle = "rgba(14, 165, 233, 0.8)"
-        ctx.lineWidth = r * 0.03
-        ctx.stroke()
-
-        // Dome shine (highlight)
-        ctx.fillStyle = "rgba(255, 255, 255, 0.4)"
-        ctx.beginPath()
-        ctx.ellipse(-r * 0.35, -r * 0.55, r * 0.25, r * 0.15, -0.4, 0, Math.PI * 2)
-        ctx.fill()
-
-      
-        // ALIENS INSIDE THE DOME (2 small pilots)
-       
-        for (const pilotOffset of [-r * 0.3, r * 0.3]) {
-          // Body
-          ctx.fillStyle = "#22c55e"
-          ctx.beginPath()
-          ctx.ellipse(pilotOffset, -r * 0.2, r * 0.12, r * 0.15, 0, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Head
-          ctx.fillStyle = "#4ade80"
-          ctx.beginPath()
-          ctx.arc(pilotOffset, -r * 0.4, r * 0.13, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Big alien eyes (black)
-          ctx.fillStyle = "#000000"
-          ctx.beginPath()
-          ctx.ellipse(pilotOffset - r * 0.05, -r * 0.4, r * 0.04, r * 0.06, -0.3, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.beginPath()
-          ctx.ellipse(pilotOffset + r * 0.05, -r * 0.4, r * 0.04, r * 0.06, 0.3, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Eye shine
-          ctx.fillStyle = "#ffffff"
-          ctx.beginPath()
-          ctx.arc(pilotOffset - r * 0.06, -r * 0.42, r * 0.015, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.beginPath()
-          ctx.arc(pilotOffset + r * 0.04, -r * 0.42, r * 0.015, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        
-        // ANTENNA (top)
-    
-        ctx.strokeStyle = "#94a3b8"
-        ctx.lineWidth = r * 0.04
-        ctx.lineCap = "round"
-        ctx.beginPath()
-        ctx.moveTo(0, -r * 0.85)
-        ctx.lineTo(0, -r * 1.2)
-        ctx.stroke()
-        ctx.lineCap = "butt"
-
-        // Antenna ball (glowing red, blinking)
-        const antennaBlink = Math.sin(t / 200) > 0 ? 1 : 0.4
-        ctx.fillStyle = `rgba(255, 50, 50, ${antennaBlink})`
-        ctx.shadowBlur = 15
-        ctx.shadowColor = "#ff0000"
-        ctx.beginPath()
-        ctx.arc(0, -r * 1.25, r * 0.1, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.shadowBlur = 0
-
-        // ENGINE GLOW (bottom, blue thrusters)
-     
-        ctx.save()
-        ctx.globalCompositeOperation = "lighter"
-        const engineGrad = ctx.createRadialGradient(0, r * 0.6, 0, 0, r * 0.6, r * 0.7)
-        engineGrad.addColorStop(0, "rgba(100, 200, 255, 0.9)")
-        engineGrad.addColorStop(0.5, "rgba(100, 200, 255, 0.4)")
-        engineGrad.addColorStop(1, "rgba(100, 200, 255, 0)")
-
-        ctx.fillStyle = engineGrad
-        ctx.beginPath()
-        ctx.ellipse(0, r * 0.65, r * 0.5, r * 0.2, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.restore()
-
-        ctx.restore()
-      
-
         // boss Queen Xeno Hen
       } else if (boss.type === "queenXenoHen") {
         const r = boss.radius
