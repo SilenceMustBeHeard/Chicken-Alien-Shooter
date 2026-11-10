@@ -647,7 +647,6 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
    const spawnBoss = (canvas: HTMLCanvasElement) => {
     const bossTypes: Boss["type"][] = [
-      //"abductor",
      "alienMouse",
      "alienBumblebee",
       "alienOctopus",
@@ -1584,117 +1583,65 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
           break
         
 
-             case "queenXenoHen":
-          {
-            // Find centroid of all mobs (to orbit around them)
-            let targetX = player.x
-            let targetY = player.y
+         
+case "queenXenoHen": {
+  const queenBehavior = getBossBehavior("queenXenoHen")
 
-            if (enemiesRef.current.length > 0) {
-              let sumX = 0
-              let sumY = 0
-              for (const enemy of enemiesRef.current) {
-                sumX += enemy.x
-                sumY += enemy.y
-              }
-              targetX = sumX / enemiesRef.current.length
-              targetY = sumY / enemiesRef.current.length
-            }
+  const queenContext = createBossContext({
+    boss,
+    player,
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+    deltaTime,
+    bossTime: gameTimeRef.current,
+    enemiesRef,
+    projectilesRef,
+    getWave: () => waveRef.current,
+    killBoss: () => {
+      bossRef.current = null
+      lastBossWaveRef.current = waveRef.current
+    },
+    damagePlayer: (amount, _source) => {
+      if (player.invincibleTime <= 0 && !player.shield) {
+        player.health -= amount
+        player.invincibleTime = 60
+        chickenHitSound()
+      }
+    },
+    healPlayer: (amount) => {
+      player.health = Math.min(player.maxHealth, player.health + amount)
+    },
+    projectiles: gameContext.projectiles,
+    enemies: gameContext.enemies,
+    particles: gameContext.particles,
+    floatingTexts: gameContext.floatingTexts,
+    screenShake: gameContext.screenShake,
+    audio: gameContext.audio,
+    ui: gameContext.ui,
+  })
 
-            // Orbit around mob group (or player if no mobs)
-            const orbitRadius = 180
-            const orbitSpeed = Date.now() / 1500
-            const orbitX = targetX + Math.cos(orbitSpeed) * orbitRadius
-            const orbitY = targetY + Math.sin(orbitSpeed) * orbitRadius
+  queenBehavior.update(boss, queenContext)
 
-            // Smooth move toward orbit position
-            boss.x += (orbitX - boss.x) * 0.03
-            boss.y += (orbitY - boss.y) * 0.03
+  if (!bossRef.current) {
+    scoreRef.current += 500
+    setScore(scoreRef.current)
+    killCountRef.current += 1
+    setKillCount(killCountRef.current)
+    addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+    addScreenShake(15)
+    playSound(200, 0.5, "sawtooth")
 
-            // Clamp to canvas bounds
-            boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
-            boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
+    for (let p = 0; p < 3; p++) {
+      spawnWeaponPowerUp(
+        boss.x + (Math.random() - 0.5) * 80,
+        boss.y + (Math.random() - 0.5) * 80,
+      )
+    }
+  }
 
-            //  HEAL MOBS (every 1s, +2 HP each) 
-            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
-            boss.spawnTimer += deltaTime
+  break
+}
 
-            if (boss.spawnTimer > 1000) {
-              boss.spawnTimer = 0
-
-              const buffRadius = boss.buffRadius ?? 0
-              if (buffRadius > 0) {
-                enemiesRef.current.forEach((enemy) => {
-                  const dx = enemy.x - boss.x
-                  const dy = enemy.y - boss.y
-                  const dist = Math.sqrt(dx * dx + dy * dy)
-
-                  if (dist < buffRadius) {
-                    // Heal + buff speed
-                    if (enemy.health < enemy.maxHealth) {
-                      enemy.health = Math.min(enemy.maxHealth, enemy.health + 2)
-                    }
-                    if (enemy.speed < 1.5) {
-                      enemy.speed = Math.min(enemy.speed * 1.01, 1.5)
-                    }
-                  }
-                })
-
-                // Healing pulse visual
-                createParticles(boss.x, boss.y, "#28f0ff")
-              }
-            }
-            //  SHOOT 3 PROJECTILES (every 1.5s) 
-            if (boss.shootTimer === undefined) boss.shootTimer = 0
-            boss.shootTimer += deltaTime
-
-            if (boss.shootTimer > 1500) {
-              boss.shootTimer = 0
-
-              const angleToPlayer = Math.atan2(player.y - boss.y, player.x - boss.x)
-              for (let i = -1; i <= 1; i++) {
-                const spreadAngle = angleToPlayer + i * 0.2
-
-                projectilesRef.current.push({
-                  x: boss.x,
-                  y: boss.y,
-                  radius: 9,
-                  vx: Math.cos(spreadAngle) * 4.5,
-                  vy: Math.sin(spreadAngle) * 4.5,
-                  damage: 7,
-                  color: "#28f0ff",
-                  isEnemyProjectile: true,
-                })
-              }
-
-              playSound(400, 0.15, "triangle")
-            }
-
-            //  CONTACT DAMAGE 
-            const dxp = player.x - boss.x
-            const dyp = player.y - boss.y
-            const distp = Math.sqrt(dxp * dxp + dyp * dyp)
-
-            if (distp < player.radius + boss.radius * 0.85) {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= 15
-                player.invincibleTime = 60
-                chickenHitSound()
-                addScreenShake(10)
-                addFloatingText(player.x, player.y - 30, "-15", "#ff0000", 18)
-
-                if (player.health <= 0) {
-                  chickenDeathSound()
-                  gameStateRef.current = "gameOver"
-                  setGameState("gameOver")
-                  setFinalScore(scoreRef.current)
-                  setFinalKillCount(killCountRef.current)
-                  setFinalWave(waveRef.current)
-                }
-              }
-            }
-          }
-          break
 
 
                             case "devourer":
@@ -3104,9 +3051,9 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
               case "abductor":
                 contactDamage = 15
                 break
-              case "queenXenoHen":
-                contactDamage = 20
-                break
+          case "queenXenoHen":
+  contactDamage = boss.queenEnraged ? 20 : 15
+  break
               case "devourer":
                 contactDamage = 25
                 break
@@ -3973,516 +3920,15 @@ case "charge":
         }
       
         // boss Queen Xeno Hen
-      } else if (boss.type === "queenXenoHen") {
-        const r = boss.radius
-        const t = bossTime
-        const bx = boss.x
-        const by = boss.y
+    
+} else if (boss.type === "queenXenoHen") {
+  const queenBehavior = getBossBehavior("queenXenoHen")
+  const playerForDraw = playerRef.current
+
+  if (playerForDraw) {
+    queenBehavior.draw(ctx, boss, bossTime, playerForDraw)
+  }
 
-        const pulse = 1 + Math.sin(t / 180) * 0.025
-        const wingFlap = Math.sin(t / 75) * 0.18
-        const crestPulse = 0.7 + Math.sin(t / 120) * 0.3
-        const auraPulse = 0.5 + Math.sin(t / 250) * 0.3
-        const hover = Math.sin(t / 160) * r * 0.025
-        const cy = by + hover
-
-        // Orbit setup for eggs
-        const orbitRadius = r * 1.35
-        const orbitSpeed = t / 1200
-        const eggCount = 5
-
-        // Outer save — protects everything after from leaking state
-        ctx.save()
-
-        // BIO-MUTATED XENO-HEN QUEEN
-
-        // BIOLOGICAL BUFF FIELD
-        if (boss.buffRadius) {
-          ctx.save()
-          ctx.globalCompositeOperation = "lighter"
-
-          const aura = ctx.createRadialGradient(
-            bx, cy, r * 0.55,
-            bx, cy, boss.buffRadius
-          )
-          aura.addColorStop(0, `rgba(170, 45, 255, ${auraPulse * 0.2})`)
-          aura.addColorStop(0.65, `rgba(65, 210, 255, ${auraPulse * 0.1})`)
-          aura.addColorStop(1, "rgba(65, 211, 255, 0.62)")
-
-          ctx.fillStyle = aura
-          ctx.beginPath()
-          ctx.arc(bx, cy, boss.buffRadius, 0, Math.PI * 10)
-          ctx.fill()
-
-          ctx.strokeStyle = `rgba(110, 230, 255, ${auraPulse * 0.5})`
-          ctx.lineWidth = 2
-          ctx.setLineDash([12, 9])
-          ctx.beginPath()
-          ctx.arc(bx, cy, boss.buffRadius, -t / 900, Math.PI * 2 - t / 900)
-          ctx.stroke()
-          ctx.setLineDash([])
-
-          ctx.restore()
-        }
-
-        // ALIEN TAIL: segmented spines
-        ctx.save()
-        ctx.translate(bx, cy + r * 0.35)
-        ctx.rotate(Math.sin(t / 220) * 0.08)
-
-        for (let i = -2; i <= 2; i++) {
-          const spread = i * r * 0.19
-          const length = r * (0.62 + (2 - Math.abs(i)) * 0.12)
-
-          ctx.fillStyle = i % 2 === 0 ? "#5c2a8a" : "#2a2244"
-          ctx.strokeStyle = "#a56bff"
-          ctx.lineWidth = 1.5
-
-          ctx.beginPath()
-          ctx.moveTo(spread * 0.25, 0)
-          ctx.quadraticCurveTo(
-            spread * 0.6, length * 0.45,
-            spread * 1.4, length
-          )
-          ctx.lineTo(spread * 1.4 + r * 0.055, length * 0.66)
-          ctx.quadraticCurveTo(
-            spread * 0.8, length * 0.25,
-            spread * 0.25, 0
-          )
-          ctx.closePath()
-          ctx.fill()
-          ctx.stroke()
-
-          ctx.strokeStyle = `rgba(90, 240, 255, ${0.35 + crestPulse * 0.25})`
-          ctx.lineWidth = 1
-          ctx.beginPath()
-          ctx.moveTo(spread * 0.3, r * 0.08)
-          ctx.lineTo(spread * 1.3, length * 0.82)
-          ctx.stroke()
-        }
-        ctx.restore()
-
-        // FOUR ALIEN WINGS
-        for (const side of [-1, 1]) {
-          for (const rear of [true, false]) {
-            ctx.save()
-            ctx.translate(
-              bx + side * r * (rear ? 0.35 : 0.48),
-              cy - r * (rear ? 0.05 : 0.12)
-            )
-
-            ctx.rotate(
-              side * (rear ? 0.48 : -0.28) +
-              wingFlap * (rear ? -0.7 : 1)
-            )
-
-            const length = r * (rear ? 0.9 : 1.25)
-            const height = r * (rear ? 0.31 : 0.4)
-
-            ctx.fillStyle = rear
-              ? "rgba(91, 45, 155, 0.48)"
-              : "rgba(88, 200, 255, 0.25)"
-            ctx.strokeStyle = rear ? "#8954c9" : "#65dfff"
-            ctx.lineWidth = 2
-
-            ctx.beginPath()
-            ctx.moveTo(0, 0)
-            ctx.quadraticCurveTo(
-              side * length * 0.35, -height * 1.2,
-              side * length, -height * 0.15
-            )
-            ctx.quadraticCurveTo(
-              side * length * 0.75, height * 0.9,
-              side * length * 0.2, height * 0.55
-            )
-            ctx.closePath()
-            ctx.fill()
-            ctx.stroke()
-
-            ctx.strokeStyle = "rgba(180, 245, 255, 0.65)"
-            ctx.lineWidth = 1.2
-
-            for (let i = 0; i < 3; i++) {
-              ctx.beginPath()
-              ctx.moveTo(r * 0.04, r * 0.04 * i)
-              ctx.quadraticCurveTo(
-                side * length * 0.45,
-                (i - 1) * height * 0.15,
-                side * length * (0.65 + i * 0.1),
-                (i - 1) * height * 0.17
-              )
-              ctx.stroke()
-            }
-
-            ctx.restore()
-          }
-        }
-
-        // SIX JOINTED PREDATOR LIMBS
-        ctx.save()
-        ctx.lineCap = "round"
-        ctx.lineJoin = "round"
-
-        for (const side of [-1, 1]) {
-          for (let i = 0; i < 3; i++) {
-            const anchorX = bx + side * r * (0.28 + i * 0.2)
-            const anchorY = cy + r * (0.12 + i * 0.23)
-            const swing = Math.sin(t / 95 + i * 1.7 + side) * r * 0.07
-
-            const kneeX = anchorX + side * r * (0.22 + i * 0.035)
-            const kneeY = anchorY + r * 0.24
-            const footX = kneeX + side * r * 0.12 + swing
-            const footY = cy + r * (0.9 + i * 0.035)
-
-            ctx.strokeStyle = "#811af86b"
-            ctx.lineWidth = r * 0.075
-            ctx.beginPath()
-            ctx.moveTo(anchorX, anchorY)
-            ctx.lineTo(kneeX, kneeY)
-            ctx.lineTo(footX, footY)
-            ctx.stroke()
-
-            ctx.strokeStyle = "#8954c9"
-            ctx.lineWidth = r * 0.022
-            ctx.beginPath()
-            ctx.moveTo(anchorX, anchorY)
-            ctx.lineTo(kneeX, kneeY)
-            ctx.stroke()
-
-            ctx.fillStyle = "#5b3188"
-            ctx.beginPath()
-            ctx.arc(kneeX, kneeY, r * 0.055, 0, Math.PI * 2)
-            ctx.fill()
-
-            ctx.strokeStyle = "#b9f7ff"
-            ctx.lineWidth = r * 0.025
-
-            for (let claw = -1; claw <= 1; claw++) {
-              ctx.beginPath()
-              ctx.moveTo(footX, footY)
-              ctx.lineTo(
-                footX + side * r * (0.09 + claw * 0.025),
-                footY + r * (0.07 + Math.abs(claw) * 0.025)
-              )
-              ctx.stroke()
-            }
-          }
-        }
-
-        ctx.restore()
-
-        // BODY — fleshy bio-mutated queen (NOT roasted chicken)
-        
-        ctx.save()
-        ctx.translate(bx, cy)
-        ctx.scale(pulse, pulse)
-
-        const bodyGrad = ctx.createRadialGradient(
-          -r * 0.25, -r * 0.25, r * 0.05,
-          0, r * 0.12, r * 1.05
-        )
-        // Deep flesh/membrane tones — purple-red bio, not roasted brown
-        bodyGrad.addColorStop(0, "#a35cd6")
-        bodyGrad.addColorStop(0.3, "#7c3aed")
-        bodyGrad.addColorStop(0.65, "#4c1d95")
-        bodyGrad.addColorStop(1, "#1a0a2a")
-
-        ctx.fillStyle = bodyGrad
-        ctx.strokeStyle = "#c084fc"
-        ctx.lineWidth = r * 0.045
-
-        ctx.beginPath()
-        ctx.ellipse(0, r * 0.1, r * 0.68, r * 0.83, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-
-        // Chitin armor plates (bio-luminescent edges)
-        for (let i = 0; i < 3; i++) {
-          const plateY = -r * 0.25 + i * r * 0.29
-          const plateW = r * (0.48 - i * 0.045)
-
-          ctx.fillStyle = i % 2 === 0 ? "#4c1d95" : "#3b1478"
-          ctx.strokeStyle = "#a78bfa"
-          ctx.lineWidth = 1.5
-
-          ctx.beginPath()
-          ctx.moveTo(-plateW, plateY)
-          ctx.quadraticCurveTo(0, plateY - r * 0.12, plateW, plateY)
-          ctx.lineTo(plateW * 0.72, plateY + r * 0.14)
-          ctx.quadraticCurveTo(0, plateY + r * 0.23, -plateW * 0.72, plateY + r * 0.14)
-          ctx.closePath()
-          ctx.fill()
-          ctx.stroke()
-        }
-
-        // Empty egg chamber (glowing cavity where eggs USED to be)
-        ctx.fillStyle = "rgba(40, 20, 60, 0.7)"
-        ctx.beginPath()
-        ctx.ellipse(0, r * 0.4, r * 0.45, r * 0.3, 0, 0, Math.PI * 2)
-        ctx.fill()
-
-        ctx.strokeStyle = "rgba(167, 139, 250, 0.6)"
-        ctx.lineWidth = 2
-        ctx.setLineDash([4, 4])
-        ctx.stroke()
-        ctx.setLineDash([])
-
-        // Armor glint
-        ctx.strokeStyle = "rgba(205, 175, 255, 0.45)"
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(-r * 0.23, -r * 0.1, r * 0.2, r * 0.35, -0.3, -1.2, 1.2)
-        ctx.stroke()
-
-        ctx.restore()
-
-        // ALIEN NECK: layered armored collar
-        ctx.fillStyle = "#1b1429"
-        ctx.strokeStyle = "#8050b6"
-        ctx.lineWidth = 2
-
-        ctx.beginPath()
-        ctx.moveTo(bx - r * 0.43, cy - r * 0.55)
-        ctx.lineTo(bx - r * 0.3, cy - r * 0.83)
-        ctx.lineTo(bx, cy - r * 0.7)
-        ctx.lineTo(bx + r * 0.3, cy - r * 0.83)
-        ctx.lineTo(bx + r * 0.43, cy - r * 0.55)
-        ctx.lineTo(bx + r * 0.28, cy - r * 0.4)
-        ctx.lineTo(bx - r * 0.28, cy - r * 0.4)
-        ctx.closePath()
-        ctx.fill()
-        ctx.stroke()
-
-        // XENO HEAD
-        const headY = cy - r * 0.86
-
-        const headGrad = ctx.createRadialGradient(
-          bx - r * 0.15, headY - r * 0.12, r * 0.03,
-          bx, headY, r * 0.57
-        )
-        headGrad.addColorStop(0, "#69448d")
-        headGrad.addColorStop(0.45, "#3a2856")
-        headGrad.addColorStop(1, "#0b0b17")
-
-        ctx.fillStyle = headGrad
-        ctx.strokeStyle = "#9e69d6"
-        ctx.lineWidth = r * 0.04
-
-        ctx.beginPath()
-        ctx.moveTo(bx, headY - r * 0.58)
-        ctx.lineTo(bx + r * 0.39, headY - r * 0.2)
-        ctx.lineTo(bx + r * 0.34, headY + r * 0.2)
-        ctx.lineTo(bx + r * 0.13, headY + r * 0.42)
-        ctx.lineTo(bx, headY + r * 0.32)
-        ctx.lineTo(bx - r * 0.13, headY + r * 0.42)
-        ctx.lineTo(bx - r * 0.34, headY + r * 0.2)
-        ctx.lineTo(bx - r * 0.39, headY - r * 0.2)
-        ctx.closePath()
-        ctx.fill()
-        ctx.stroke()
-
-        // Forehead armor ridge
-        ctx.fillStyle = "#7c4fb0"
-        ctx.beginPath()
-        ctx.moveTo(bx, headY - r * 0.48)
-        ctx.lineTo(bx + r * 0.13, headY - r * 0.12)
-        ctx.lineTo(bx, headY + r * 0.04)
-        ctx.lineTo(bx - r * 0.13, headY - r * 0.12)
-        ctx.closePath()
-        ctx.fill()
-
-        // THREE HORNED BIO-CROWN
-        ctx.save()
-        ctx.globalAlpha = crestPulse
-
-        for (let i = -1; i <= 1; i++) {
-          const hx = bx + i * r * 0.23
-          const hy = headY - r * 0.38 + Math.abs(i) * r * 0.09
-          const tipY = hy - r * (i === 0 ? 0.53 : 0.36)
-
-          ctx.fillStyle = i === 0 ? "#6d28d9" : "#3b1478"
-          ctx.strokeStyle = "#c4b5fd"
-          ctx.lineWidth = 2
-
-          ctx.beginPath()
-          ctx.moveTo(hx - r * 0.1, hy)
-          ctx.quadraticCurveTo(
-            hx - r * 0.08, tipY + r * 0.1,
-            hx + r * 0.02, tipY
-          )
-          ctx.quadraticCurveTo(
-            hx + r * 0.1, tipY + r * 0.16,
-            hx + r * 0.1, hy
-          )
-          ctx.closePath()
-          ctx.fill()
-          ctx.stroke()
-        }
-
-        ctx.restore()
-
-        // CYAN PREDATOR EYES
-        for (const side of [-1, 1]) {
-          const eyeX = bx + side * r * 0.205
-          const eyeY = headY - r * 0.035
-
-          ctx.fillStyle = "#070b17"
-          ctx.beginPath()
-          ctx.ellipse(eyeX, eyeY, r * 0.145, r * 0.105, side * -0.22, 0, Math.PI * 2)
-          ctx.fill()
-
-          const eyeGrad = ctx.createRadialGradient(
-            eyeX - r * 0.025, eyeY - r * 0.02, r * 0.01,
-            eyeX, eyeY, r * 0.15
-          )
-          eyeGrad.addColorStop(0, "#f3ffff")
-          eyeGrad.addColorStop(0.25, "#7cfaff")
-          eyeGrad.addColorStop(0.7, "#19bce9")
-          eyeGrad.addColorStop(1, "#174a87")
-
-          ctx.fillStyle = eyeGrad
-          ctx.beginPath()
-          ctx.ellipse(eyeX, eyeY, r * 0.12, r * 0.078, side * -0.22, 0, Math.PI * 2)
-          ctx.fill()
-
-          ctx.fillStyle = "#0478f388"
-          ctx.beginPath()
-          ctx.ellipse(eyeX, eyeY, r * 0.022, r * 0.064, 0, 0, Math.PI * 2)
-          ctx.fill()
-
-          ctx.fillStyle = "#ffffff"
-          ctx.beginPath()
-          ctx.arc(eyeX - side * r * 0.035, eyeY - r * 0.025, r * 0.018, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        // SPLIT MANDIBLES
-        for (const side of [-1, 1]) {
-          ctx.fillStyle = "#171122"
-          ctx.strokeStyle = "#9e69d6"
-          ctx.lineWidth = 2
-
-          ctx.beginPath()
-          ctx.moveTo(bx + side * r * 0.1, headY + r * 0.22)
-          ctx.quadraticCurveTo(
-            bx + side * r * 0.3, headY + r * 0.24,
-            bx + side * r * 0.22, headY + r * 0.43
-          )
-          ctx.lineTo(bx + side * r * 0.08, headY + r * 0.31)
-          ctx.closePath()
-          ctx.fill()
-          ctx.stroke()
-
-          ctx.fillStyle = "#c9fbff"
-          ctx.beginPath()
-          ctx.moveTo(bx + side * r * 0.12, headY + r * 0.29)
-          ctx.lineTo(bx + side * r * 0.16, headY + r * 0.4)
-          ctx.lineTo(bx + side * r * 0.19, headY + r * 0.3)
-          ctx.closePath()
-          ctx.fill()
-        }
-
-        // BIO-LUMINESCENT SENSORS
-        for (const side of [-1, 1]) {
-          const sway = Math.sin(t / 90 + side) * r * 0.045
-          const rootX = bx + side * r * 0.2
-          const rootY = headY - r * 0.3
-          const tipX = rootX + side * r * 0.18 + sway
-          const tipY = rootY - r * 0.32
-
-          ctx.strokeStyle = "#8b67b5"
-          ctx.lineWidth = r * 0.035
-          ctx.beginPath()
-          ctx.moveTo(rootX, rootY)
-          ctx.quadraticCurveTo(
-            rootX + side * r * 0.12,
-            rootY - r * 0.2,
-            tipX, tipY
-          )
-          ctx.stroke()
-
-          ctx.fillStyle = "#70f7ff"
-          ctx.beginPath()
-          ctx.arc(tipX, tipY, r * 0.055, 0, Math.PI * 2)
-          ctx.fill()
-
-          ctx.fillStyle = "rgba(90, 240, 255, 0.22)"
-          ctx.beginPath()
-          ctx.arc(tipX, tipY, r * 0.105, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        // ENERGY SPINES along the back
-        for (let i = 0; i < 5; i++) {
-          const sx = bx + (i - 2) * r * 0.19
-          const sy = cy - r * (0.48 - Math.abs(i - 2) * 0.04)
-
-          ctx.fillStyle = "#5b3188"
-          ctx.strokeStyle = "#6beaff"
-          ctx.lineWidth = 1.2
-
-          ctx.beginPath()
-          ctx.moveTo(sx - r * 0.055, sy)
-          ctx.lineTo(sx, sy - r * (0.14 + (i === 2 ? 0.06 : 0)))
-          ctx.lineTo(sx + r * 0.055, sy)
-          ctx.closePath()
-          ctx.fill()
-          ctx.stroke()
-        }
-
-        // ORBITING EGGS 
-        for (let i = 0; i < eggCount; i++) {
-          const eggAngle = orbitSpeed + (i / eggCount) * Math.PI * 2
-          // Elliptical orbit (flattened, so eggs pass in front/behind visually)
-          const eggX = bx + Math.cos(eggAngle) * orbitRadius
-          const eggY = cy + Math.sin(eggAngle) * orbitRadius * 0.5
-
-          // Depth: eggs in front (sin > 0) drawn later, behind drawn earlier
-          // Simple: draw all on top for clarity, but scale by depth
-          const depth = Math.sin(eggAngle) // -1 (behind) to 1 (front)
-          const eggScale = 0.75 + depth * 0.25
-          const eggR = r * 0.13 * eggScale
-
-          // Outer glow
-          ctx.shadowColor = "#28f0ff"
-          ctx.shadowBlur = 18
-          ctx.fillStyle = "rgba(40, 240, 255, 0.2)"
-          ctx.beginPath()
-          ctx.ellipse(eggX, eggY, eggR * 1.5, eggR * 1.8, eggAngle, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.shadowBlur = 0
-
-          // Egg body
-          const eggGrad = ctx.createRadialGradient(
-            eggX - eggR * 0.3, eggY - eggR * 0.4, eggR * 0.05,
-            eggX, eggY, eggR * 1.2
-          )
-          eggGrad.addColorStop(0, "#f2ffff")
-          eggGrad.addColorStop(0.3, "#8bf8ff")
-          eggGrad.addColorStop(0.75, "#28a9dc")
-          eggGrad.addColorStop(1, "#3154a8")
-
-          ctx.fillStyle = eggGrad
-          ctx.strokeStyle = "#9af8ff"
-          ctx.lineWidth = 1.5
-
-          ctx.beginPath()
-          ctx.ellipse(eggX, eggY, eggR, eggR * 1.35, eggAngle, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-
-          // Crack detail (hint that it's about to hatch)
-          ctx.strokeStyle = "rgba(20, 80, 120, 0.6)"
-          ctx.lineWidth = 1
-          ctx.beginPath()
-          ctx.moveTo(eggX - eggR * 0.4, eggY - eggR * 0.3)
-          ctx.lineTo(eggX - eggR * 0.1, eggY)
-          ctx.lineTo(eggX - eggR * 0.3, eggY + eggR * 0.4)
-          ctx.stroke()
-        }
-
-        // Close outer save
-        ctx.restore()
       
 
         // boss Devourer

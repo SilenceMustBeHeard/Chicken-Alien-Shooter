@@ -83,6 +83,9 @@ abductorTargetY?: number
   dashDirY?: number
   dashIsFeint?: boolean
   burstDashCount?: number
+  
+  // queenXenoHen
+queenEnraged?: boolean
 
   // voidLeviathan
   leviathanPhase?: "forceField" | "zigzag" | "uroboros"
