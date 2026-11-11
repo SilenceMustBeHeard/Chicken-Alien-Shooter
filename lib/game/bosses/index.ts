@@ -6,5 +6,6 @@ export * from "./alien-octopus"
 export * from "./alien-mantis"
 export * from "./abductor"
 export * from "./queen-xeno-hen"
+export * from "./devourer"
 
 
