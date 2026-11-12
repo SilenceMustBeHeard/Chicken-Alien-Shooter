@@ -9,6 +9,6 @@ export * from "./queen-xeno-hen"
 export * from "./devourer"
 export * from "./the-butcher"
 export * from "./void-reaper"
-
+export * from "./plague-bringer"
 
 
