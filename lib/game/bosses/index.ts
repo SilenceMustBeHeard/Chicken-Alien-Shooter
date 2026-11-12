@@ -7,5 +7,8 @@ export * from "./alien-mantis"
 export * from "./abductor"
 export * from "./queen-xeno-hen"
 export * from "./devourer"
+export * from "./the-butcher"
+export * from "./void-reaper"
+
 
 

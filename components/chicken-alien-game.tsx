@@ -1813,231 +1813,59 @@ case "queenXenoHen": {
           break
 
       // VOID REAPER 
-          case "voidReaper":
-          {
-            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
-            boss.spawnTimer += deltaTime
-
-            const distToPlayer = Math.sqrt(
-              (player.x - boss.x) ** 2 + (player.y - boss.y) ** 2
-            )
-
-            const healthPercent = boss.health / boss.maxHealth
-            const isBerserk = healthPercent < 0.10
-
-            //  HEAL PHASE 
-            if (boss.isHealing) {
-              boss.healTimer = (boss.healTimer || 0) + deltaTime
-
-              // Heal: +10 HP/sec
-              const healPerMs = 10 / 1000
-              boss.health = Math.min(boss.maxHealth, boss.health + healPerMs * deltaTime)
-
-              // Spawn mobs every 1s: Math.ceil(HP / 50)
-              if (Math.floor(boss.healTimer / 1000) !== Math.floor((boss.healTimer - deltaTime) / 1000)) {
-                const mobCount = Math.ceil(boss.health / 50)
-                for (let i = 0; i < mobCount; i++) {
-                  const angle = Math.random() * Math.PI * 2
-                  const spawnDist = boss.radius + 80 + Math.random() * 100
-                  enemiesRef.current.push({
-                    x: boss.x + Math.cos(angle) * spawnDist,
-                    y: boss.y + Math.sin(angle) * spawnDist,
-                    radius: 12,
-                    speed: 0.6,
-                    health: 2,
-                    maxHealth: 2,
-                    groupId: Date.now() + i,
-                    type: "grunt",
-                    alienType: "grunt",
-                    color: getAlienColor("grunt"),
-                  })
-                }
+             case "voidReaper": {
+          const behavior = getBossBehavior("voidReaper")
+          const bossCtx = createBossContext({
+            boss,
+            player,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            deltaTime,
+            bossTime: gameTimeRef.current,
+            enemiesRef,
+            projectilesRef,
+            getWave: () => waveRef.current,
+            killBoss: () => {
+              bossRef.current = null
+              lastBossWaveRef.current = waveRef.current
+            },
+            damagePlayer: (amount, _source) => {
+              if (player.invincibleTime <= 0 && !player.shield) {
+                player.health -= amount
+                player.invincibleTime = 60
+                chickenHitSound()
               }
+            },
+            healPlayer: (amount) => {
+              player.health = Math.min(player.maxHealth, player.health + amount)
+            },
+            projectiles: gameContext.projectiles,
+            enemies: gameContext.enemies,
+            particles: gameContext.particles,
+            floatingTexts: gameContext.floatingTexts,
+            screenShake: gameContext.screenShake,
+            audio: gameContext.audio,
+            ui: gameContext.ui,
+          })
+          behavior.update(boss, bossCtx)
 
-              // End heal after 5s
-              if (boss.healTimer >= 5000) {
-                boss.isHealing = false
-                boss.healTimer = 0
-                boss.combatTimer = 0
-                boss.blinkTimer = 0
-                boss.reaperShootTimer = 0
-              }
-
-              // Contact damage still applies during heal
-              if (distToPlayer < player.radius + boss.radius * 0.85) {
-                if (player.invincibleTime <= 0 && !player.shield) {
-                  player.health -= 10
-                  player.invincibleTime = 60
-                  chickenHitSound()
-                  addScreenShake(5)
-                  if (player.health <= 0) {
-                    chickenDeathSound()
-                    gameStateRef.current = "gameOver"
-                    setGameState("gameOver")
-                    setFinalScore(scoreRef.current)
-                    setFinalKillCount(killCountRef.current)
-                    setFinalWave(waveRef.current)
-                  }
-                }
-              }
-            } else {
-              //  COMBAT PHASE 
-              boss.combatTimer = (boss.combatTimer || 0) + deltaTime
-
-              // Check if 10s combat ended
-              if (boss.combatTimer >= 10000) {
-                if (healthPercent < 0.5 && !isBerserk) {
-                  // Enter heal
-                  boss.isHealing = true
-                  boss.healTimer = 0
-                  boss.combatTimer = 0
-                  boss.blinkTimer = 0
-                  boss.reaperShootTimer = 0
-                } else {
-                  // Continue combat
-                  boss.combatTimer = 0
-                }
-              }
-
-              if (isBerserk) {
-                //  BERSERK  //
-                // Fast blink every 2.5s
-                boss.blinkTimer = (boss.blinkTimer || 0) + deltaTime
-                if (boss.blinkTimer >= 2500) {
-                  boss.blinkTimer = 0
-                  boss.x = Math.random() * (canvas.width - boss.radius * 2) + boss.radius
-                  boss.y = Math.random() * (canvas.height - boss.radius * 2) + boss.radius
-                  createParticles(boss.x, boss.y, "#ff0000")
-                }
-
-                // Spawn 5 mobs every 2s
-                if (Math.floor(boss.combatTimer / 2000) !== Math.floor((boss.combatTimer - deltaTime) / 2000)) {
-                  for (let i = 0; i < 5; i++) {
-                    const angle = Math.random() * Math.PI * 2
-                    const spawnDist = boss.radius + 100 + Math.random() * 50
-                    enemiesRef.current.push({
-                      x: boss.x + Math.cos(angle) * spawnDist,
-                      y: boss.y + Math.sin(angle) * spawnDist,
-                      radius: 12,
-                      speed: 0.8,
-                      health: 2,
-                      maxHealth: 2,
-                      groupId: Date.now() + i,
-                      type: "grunt",
-                      alienType: "grunt",
-                      color: getAlienColor("grunt"),
-                    })
-                  }
-                }
-
-                // Shoot every 1s
-                boss.reaperShootTimer = (boss.reaperShootTimer || 0) + deltaTime
-                if (boss.reaperShootTimer >= 2000) {
-                  boss.reaperShootTimer = 0
-                  const angleToPlayer = Math.atan2(player.y - boss.y, player.x - boss.x)
-                  for (let i = -1; i <= 1; i++) {
-                    const spreadAngle = angleToPlayer + i * 0.15
-                    projectilesRef.current.push({
-                      x: boss.x,
-                      y: boss.y,
-                      radius: 10,
-                      vx: Math.cos(spreadAngle) * 6,
-                      vy: Math.sin(spreadAngle) * 6,
-                      damage: 10,
-                      color: "#ff0000",
-                      isEnemyProjectile: true,
-                      isVoidSlash: true,
-                    })
-                  }
-                  playSound(300, 0.15, "sawtooth")
-                }
-              } else {
-                //  NORMAL COMBAT 
-                // Blink every 4s
-                boss.blinkTimer = (boss.blinkTimer || 0) + deltaTime
-                if (boss.blinkTimer >= 4000) {
-                  boss.blinkTimer = 0
-                  let newX = boss.x
-                  let newY = boss.y
-                  for (let attempt = 0; attempt < 10; attempt++) {
-                    newX = Math.random() * (canvas.width - boss.radius * 2) + boss.radius
-                    newY = Math.random() * (canvas.height - boss.radius * 2) + boss.radius
-                    const d = Math.sqrt((newX - player.x) ** 2 + (newY - player.y) ** 2)
-                    if (d > 200) break
-                  }
-                  createParticles(boss.x, boss.y, "#a855f7")
-                  boss.x = newX
-                  boss.y = newY
-                  createParticles(boss.x, boss.y, "#a855f7")
-                }
-
-                // Scythe Slash every 1.5s (3 aimed crescents)
-                boss.reaperShootTimer = (boss.reaperShootTimer || 0) + deltaTime
-                if (boss.reaperShootTimer >= 2000) {
-                  boss.reaperShootTimer = 0
-                  const angleToPlayer = Math.atan2(player.y - boss.y, player.x - boss.x)
-                  for (let i = -1; i <= 1; i++) {
-                    const spreadAngle = angleToPlayer + i * 0.15
-                    projectilesRef.current.push({
-                      x: boss.x,
-                      y: boss.y,
-                      radius: 10,
-                      vx: Math.cos(spreadAngle) * 6,
-                      vy: Math.sin(spreadAngle) * 6,
-                      damage: 10,
-                      color: "#c084fc",
-                      isEnemyProjectile: true,
-                      isVoidSlash: true,
-                    })
-                  }
-                  playSound(400, 0.12, "sine")
-                }
-
-                // Void Orbs every 3s (8 radial)
-                if (Math.floor(boss.combatTimer / 3000) !== Math.floor((boss.combatTimer - deltaTime) / 3000)) {
-                  for (let i = 0; i < 8; i++) {
-                    const angle = (i / 8) * Math.PI * 2
-                    projectilesRef.current.push({
-                      x: boss.x,
-                      y: boss.y,
-                      radius: 12,
-                      vx: Math.cos(angle) * 3,
-                      vy: Math.sin(angle) * 3,
-                      damage: 8,
-                      color: "#7c3aed",
-                      isEnemyProjectile: true,
-                      isVoidOrb: true,
-                    })
-                  }
-                  playSound(600, 0.15, "triangle")
-                }
-              }
-
-              // Contact damage
-              if (distToPlayer < player.radius + boss.radius * 0.85) {
-                if (player.invincibleTime <= 0 && !player.shield) {
-                  const damage = isBerserk ? 25 : 15
-                  player.health -= damage
-                  player.invincibleTime = 60
-                  chickenHitSound()
-                  addScreenShake(isBerserk ? 15 : 10)
-                  addFloatingText(player.x, player.y - 30, `-${damage}`, "#ff0000", 22)
-                  const pushAngle = Math.atan2(player.y - boss.y, player.x - boss.x)
-                  player.x += Math.cos(pushAngle) * 40
-                  player.y += Math.sin(pushAngle) * 40
-                  if (player.health <= 0) {
-                    chickenDeathSound()
-                    gameStateRef.current = "gameOver"
-                    setGameState("gameOver")
-                    setFinalScore(scoreRef.current)
-                    setFinalKillCount(killCountRef.current)
-                    setFinalWave(waveRef.current)
-                  }
-                }
-              }
+          if (!bossRef.current) {
+            scoreRef.current += 500
+            setScore(scoreRef.current)
+            killCountRef.current += 1
+            setKillCount(killCountRef.current)
+            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+            addScreenShake(15)
+            playSound(200, 0.5, "sawtooth")
+            for (let p = 0; p < 3; p++) {
+              spawnWeaponPowerUp(
+                boss.x + (Math.random() - 0.5) * 80,
+                boss.y + (Math.random() - 0.5) * 80,
+              )
             }
           }
           break
+        }
 
           // PLAGUE BRINGER 
 
@@ -3916,232 +3744,13 @@ case "charge":
       
       
 // boss Void Reaper
-        } else if (boss.type === "voidReaper") {
-        const r = boss.radius
-        const t = bossTime
-        const bx = boss.x
-        const by = boss.y
-
-        const healthPercent = boss.health / boss.maxHealth
-        const isBerserk = healthPercent < 0.10
-        const isHealing = boss.isHealing || false
-
-        // Wobble animation
-        const wobble = Math.sin(t / 400) * r * 0.04
-        const hover = Math.sin(t / 250) * r * 0.05
-
-        // Translucent during heal
-        ctx.save()
-        if (isHealing) {
-          ctx.globalAlpha = 0.35
+           } else if (boss.type === "voidReaper") {
+        const behavior = getBossBehavior("voidReaper")
+        const playerForDraw = playerRef.current
+        if (playerForDraw) {
+          behavior.draw(ctx, boss, bossTime, playerForDraw)
         }
-
-        // Aura
-        ctx.save()
-        ctx.globalCompositeOperation = "lighter"
-        const auraColor = isBerserk ? "255, 0, 0" : isHealing ? "255, 100, 100" : "168, 85, 247"
-        const auraGrad = ctx.createRadialGradient(bx, by, r * 0.3, bx, by, r * 2.5)
-        auraGrad.addColorStop(0, `rgba(${auraColor}, 0.25)`)
-        auraGrad.addColorStop(0.6, `rgba(${auraColor}, 0.1)`)
-        auraGrad.addColorStop(1, `rgba(${auraColor}, 0)`)
-        ctx.fillStyle = auraGrad
-        ctx.beginPath()
-        ctx.arc(bx, by, r * 2.5, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Floating particles
-        for (let i = 0; i < 8; i++) {
-          const pa = t / 600 + (i / 8) * Math.PI * 2
-          const pd = r * (1.3 + Math.sin(t / 300 + i) * 0.3)
-          const px = bx + Math.cos(pa) * pd
-          const py = by + Math.sin(pa) * pd * 0.6
-          ctx.fillStyle = `rgba(${auraColor}, ${0.4 + Math.sin(t / 100 + i) * 0.3})`
-          ctx.beginPath()
-          ctx.arc(px, py, r * 0.04, 0, Math.PI * 2)
-          ctx.fill()
-        }
-        ctx.restore()
-
-        // Body (shadowy)
-        ctx.save()
-        ctx.translate(bx + wobble, by + hover)
-
-        // Shadowy body
-        const bodyGrad = ctx.createRadialGradient(
-          -r * 0.2, -r * 0.3, r * 0.1,
-          0, 0, r * 1.1
-        )
-        bodyGrad.addColorStop(0, isBerserk ? "#8b0000" : isHealing ? "#8b5cf6" : "#4c1d95")
-        bodyGrad.addColorStop(0.6, isBerserk ? "#4a0000" : isHealing ? "#5b21b6" : "#2e1065")
-        bodyGrad.addColorStop(1, "#0a0015")
-
-        ctx.fillStyle = bodyGrad
-        ctx.beginPath()
-        // Amorphous shadow shape
-        for (let i = 0; i <= 16; i++) {
-          const a = (i / 16) * Math.PI * 2
-          const bulge = Math.sin(a * 3 + t / 500) * r * 0.05 + Math.cos(a * 5 - t / 400) * r * 0.03
-          const rad = r * 0.95 + bulge
-          const px = Math.cos(a) * rad
-          const py = Math.sin(a) * rad * 1.1
-          if (i === 0) ctx.moveTo(px, py)
-          else ctx.lineTo(px, py)
-        }
-        ctx.closePath()
-        ctx.fill()
-
-        // Wispy tendrils at bottom
-        ctx.strokeStyle = isBerserk ? "#5a0000" : "#2e1065"
-        ctx.lineWidth = r * 0.06
-        ctx.lineCap = "round"
-        for (let i = 0; i < 6; i++) {
-          const a = Math.PI * 0.6 + (i / 6) * Math.PI * 0.8
-          const startX = Math.cos(a) * r * 0.7
-          const startY = Math.sin(a) * r * 0.9
-          const endX = startX + Math.sin(t / 200 + i) * r * 0.15
-          const endY = startY + r * (0.3 + Math.sin(t / 150 + i) * 0.1)
-          ctx.beginPath()
-          ctx.moveTo(startX, startY)
-          ctx.quadraticCurveTo(startX + (endX - startX) * 0.5, startY + r * 0.15, endX, endY)
-          ctx.stroke()
-        }
-        ctx.lineCap = "butt"
-
-        // Hood (darker top)
-        ctx.fillStyle = isBerserk ? "#2a0000" : "#0a0015"
-        ctx.beginPath()
-        ctx.moveTo(-r * 0.65, -r * 0.2)
-        ctx.quadraticCurveTo(-r * 0.7, -r * 0.85, 0, -r * 1.0)
-        ctx.quadraticCurveTo(r * 0.7, -r * 0.85, r * 0.65, -r * 0.2)
-        ctx.closePath()
-        ctx.fill()
-
-        // Void inside hood (black hole)
-        const voidGrad = ctx.createRadialGradient(0, -r * 0.5, 0, 0, -r * 0.5, r * 0.6)
-        voidGrad.addColorStop(0, "#000000")
-        voidGrad.addColorStop(0.7, "#050010")
-        voidGrad.addColorStop(1, "rgba(10, 0, 21, 0.8)")
-        ctx.fillStyle = voidGrad
-        ctx.beginPath()
-        ctx.ellipse(0, -r * 0.5, r * 0.55, r * 0.45, 0, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Stars inside the void
-        for (let i = 0; i < 6; i++) {
-          const sa = (i / 6) * Math.PI * 2 + t / 3000
-          const sr = r * (0.15 + (i % 3) * 0.12)
-          const sx = Math.cos(sa) * sr
-          const sy = -r * 0.5 + Math.sin(sa) * sr * 0.7
-          ctx.fillStyle = `rgba(255, 255, 255, ${0.5 + Math.sin(t / 200 + i) * 0.4})`
-          ctx.beginPath()
-          ctx.arc(sx, sy, r * 0.02, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        // Eyes (glowing red)
-        for (const side of [-1, 1]) {
-          const ex = side * r * 0.18
-          const ey = -r * 0.55
-
-          ctx.shadowColor = isBerserk ? "#ff0000" : "#ff2222"
-          ctx.shadowBlur = isBerserk ? 30 : 18
-
-          ctx.fillStyle = isBerserk ? "#ff0000" : "#ff2222"
-          ctx.beginPath()
-          ctx.ellipse(ex, ey, r * 0.07, r * 0.05, side * 0.2, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.shadowBlur = 0
-
-          // Pupil
-          ctx.fillStyle = "#000000"
-          ctx.beginPath()
-          ctx.ellipse(ex, ey, r * 0.025, r * 0.04, 0, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Reflection
-          ctx.fillStyle = "#ffffff"
-          ctx.beginPath()
-          ctx.arc(ex - side * r * 0.015, ey - r * 0.015, r * 0.015, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        // Scythe
-        const scytheSwing = isBerserk ? Math.sin(t / 100) * 0.15 : Math.sin(t / 600) * 0.1
-        ctx.save()
-        ctx.translate(r * 0.7, -r * 0.2)
-        ctx.rotate(0.4 + scytheSwing)
-
-        // Handle
-        ctx.strokeStyle = "#1a0a2a"
-        ctx.lineWidth = r * 0.07
-        ctx.lineCap = "round"
-        ctx.beginPath()
-        ctx.moveTo(0, r * 0.8)
-        ctx.lineTo(0, -r * 1.2)
-        ctx.stroke()
-
-        // Blade (crescent)
-        const bladeGrad = ctx.createLinearGradient(-r * 0.6, -r, r * 0.2, -r * 0.6)
-        bladeGrad.addColorStop(0, isBerserk ? "#ff3333" : "#c084fc")
-        bladeGrad.addColorStop(0.5, isBerserk ? "#ff0000" : "#a855f7")
-        bladeGrad.addColorStop(1, isBerserk ? "#8b0000" : "#7c3aed")
-
-        ctx.fillStyle = bladeGrad
-        ctx.shadowColor = isBerserk ? "#ff0000" : "#a855f7"
-        ctx.shadowBlur = 15
-        ctx.beginPath()
-        ctx.moveTo(0, -r * 1.2)
-        ctx.quadraticCurveTo(-r * 0.8, -r * 1.0, -r * 0.5, -r * 0.3)
-        ctx.quadraticCurveTo(-r * 0.2, -r * 0.6, 0, -r * 0.7)
-        ctx.closePath()
-        ctx.fill()
-        ctx.shadowBlur = 0
-
-        // Blade edge glow
-        ctx.strokeStyle = isBerserk ? "#ff6666" : "#e9d5ff"
-        ctx.lineWidth = r * 0.02
-        ctx.beginPath()
-        ctx.moveTo(0, -r * 1.2)
-        ctx.quadraticCurveTo(-r * 0.8, -r * 1.0, -r * 0.5, -r * 0.3)
-        ctx.stroke()
-
-        ctx.restore()
-
-        ctx.restore() // end body translate
-
-        //  BERSERK: extra rage particles 
-        if (isBerserk) {
-          for (let i = 0; i < 8; i++) {
-            const pa = t / 150 + (i / 8) * Math.PI * 2
-            const pd = r * (1.5 + Math.sin(t / 100 + i) * 0.4)
-            const px = bx + Math.cos(pa) * pd
-            const py = by + Math.sin(pa) * pd * 0.6
-            ctx.fillStyle = `rgba(255, 0, 0, ${0.7 + Math.sin(t / 80 + i) * 0.3})`
-            ctx.shadowColor = "#ff0000"
-            ctx.shadowBlur = 12
-            ctx.beginPath()
-            ctx.arc(px, py, r * 0.05, 0, Math.PI * 2)
-            ctx.fill()
-            ctx.shadowBlur = 0
-          }
-        }
-
-        // ─── HEAL: red particles rising ───
-        if (isHealing) {
-          for (let i = 0; i < 6; i++) {
-            const pa = t / 400 + (i / 6) * Math.PI * 2
-            const rise = (t / 10 + i * 30) % 200
-            const px = bx + Math.cos(pa) * r * 1.2
-            const py = by + r * 0.5 - rise
-            ctx.fillStyle = `rgba(255, 100, 100, ${0.6 - rise / 300})`
-            ctx.beginPath()
-            ctx.arc(px, py, r * 0.05, 0, Math.PI * 2)
-            ctx.fill()
-          }
-        }
-
-        ctx.restore() // end heal alpha
-        
+      
 
 
 // boss Plague Bringer
