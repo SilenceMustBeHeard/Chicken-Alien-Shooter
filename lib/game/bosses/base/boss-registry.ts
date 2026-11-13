@@ -13,6 +13,7 @@ import { devourerBehavior } from "../devourer"
 import { theButcherBehavior } from "../the-butcher"
 import { voidReaperBehavior } from "../void-reaper"
 import { plagueBringerBehavior } from "../plague-bringer"
+import { ironTyrantBehavior } from "../iron-tyrant"
 
 // Registry of all bosses in the game
 // Each boss is registered with its behavior
@@ -28,7 +29,7 @@ export const BOSS_REGISTRY: Record<BossType, BossBehavior> = {
   theButcher: theButcherBehavior,     
   voidReaper: voidReaperBehavior,      
   plagueBringer: plagueBringerBehavior,   
-  ironTyrant: alienMouseBehavior,      
+  ironTyrant: ironTyrantBehavior,      
   voidLeviathan: alienMouseBehavior,   
   theHive: alienMouseBehavior,        
   omegaPrime: alienMouseBehavior,      
