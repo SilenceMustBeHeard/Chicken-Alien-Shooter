@@ -11,5 +11,6 @@ export * from "./the-butcher"
 export * from "./void-reaper"
 export * from "./plague-bringer"
 export * from "./iron-tyrant"
+export * from "./void-leviathan"
 
 
