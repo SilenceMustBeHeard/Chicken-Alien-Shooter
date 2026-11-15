@@ -33,6 +33,29 @@ import type {
 } from "@/lib/game/types"
 import { DIFFICULTY_SCALING, ALIEN_COLORS } from "@/lib/game/constants"
 
+
+function getBossDisplayHP(boss: Boss): { current: number; max: number } {
+  if (boss.type === "theHive") {
+    if (boss.hivePhase === 2 && boss.hiveLordA && boss.hiveLordB) {
+      return {
+        current: boss.hiveLordA.health + boss.hiveLordB.health,
+        max: 600,
+      }
+    }
+    if (boss.hivePhase === 3 && boss.hiveSpawns) {
+      return {
+        current: boss.hiveSpawns.reduce((sum, s) => sum + s.health, 0),
+        max: 400,
+      }
+    }
+    if (boss.hiveFinalWave) {
+      
+      return { current: 0, max: 1 }
+    }
+  }
+  return { current: boss.health, max: boss.maxHealth }
+}
+
 export function ChickenAlienGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [gameState, setGameState] = useState<GameState>("menu")
@@ -2502,20 +2525,20 @@ case "queenXenoHen": {
         return true
       }
 
-            // HIVE PHASE 2 & 3: PLAYER PROJECTILES HIT LORDS/SPAWNS 
+              // ─── HIVE PHASE 2 & 3: PLAYER PROJECTILES HIT LORDS/SPAWNS ───
       {
         const hiveBoss = bossRef.current
         if (
           hiveBoss &&
-          (hiveBoss.hivePhase === 2 || hiveBoss.hivePhase === 3) &&
-          !proj.isEnemyProjectile
+          !proj.isEnemyProjectile &&
+          (hiveBoss.hivePhase === 2 || hiveBoss.hivePhase === 3)
         ) {
-          // Phase 2: lords
+          // ─── Phase 2: Lords ───
           if (hiveBoss.hivePhase === 2 && hiveBoss.hiveLordA && hiveBoss.hiveLordB) {
             const lordA = hiveBoss.hiveLordA
             const lordB = hiveBoss.hiveLordB
             const lordRadius = 30
-            const shieldReduction = 0.5
+            const shieldReduction = 0.75  // Lord A взима 75% (25% shield)
 
             const dA = Math.sqrt((proj.x - lordA.x) ** 2 + (proj.y - lordA.y) ** 2)
             const dB = Math.sqrt((proj.x - lordB.x) ** 2 + (proj.y - lordB.y) ** 2)
@@ -2523,16 +2546,21 @@ case "queenXenoHen": {
             if (dA < proj.radius + lordRadius) {
               lordA.health -= proj.damage * shieldReduction
               createParticles(proj.x, proj.y, "#3b82f6")
+              addFloatingText(proj.x, proj.y - 20, `-${Math.round(proj.damage * shieldReduction)}`, "#93c5fd", 16)
+              playSound(400, 0.08, "square")
               return false
             }
+
             if (dB < proj.radius + lordRadius) {
               lordB.health -= proj.damage
               createParticles(proj.x, proj.y, "#22c55e")
+              addFloatingText(proj.x, proj.y - 20, `-${Math.round(proj.damage)}`, "#86efac", 16)
+              playSound(400, 0.08, "square")
               return false
             }
           }
 
-          // Phase 3: spawns
+          // ─── Phase 3: Hive Spawns ───
           if (hiveBoss.hivePhase === 3 && hiveBoss.hiveSpawns) {
             for (const spawn of hiveBoss.hiveSpawns) {
               const sdx = proj.x - spawn.x
@@ -2542,12 +2570,16 @@ case "queenXenoHen": {
               if (sdist < proj.radius + 25) {
                 spawn.health -= proj.damage
                 createParticles(proj.x, proj.y, "#dc2626")
+                addFloatingText(proj.x, proj.y - 20, `-${Math.round(proj.damage)}`, "#fca5a5", 16)
+                playSound(400, 0.08, "square")
                 return false
               }
             }
           }
         }
       }
+      
+      
 
       // Move projectile (ONCE, for both player and enemy)
       proj.x += proj.vx
@@ -3211,12 +3243,13 @@ case "charge":
         ctx.fillText(`ARMOR: ${Math.ceil(boss.armor)}/${boss.maxArmor}`, canvas.width / 2, armorBarY - 5)
       }
 
-      // Boss health bar (large and prominent)
+       // Boss health bar (large and prominent)
       const barWidth = canvas.width * 0.6
       const barHeight = 20
       const barX = (canvas.width - barWidth) / 2
       const barY = canvas.height - 40
-      const healthPercent = boss.health / boss.maxHealth
+      const { current: displayHP, max: displayMaxHP } = getBossDisplayHP(boss)
+      const healthPercent = displayHP / displayMaxHP
 
       ctx.fillStyle = "#333"
       ctx.fillRect(barX, barY, barWidth, barHeight)
@@ -3246,7 +3279,7 @@ case "charge":
         theHive: "THE HIVE",
         omegaPrime: "OMEGA PRIME",
       }
-      ctx.fillText(`${bossNames[boss.type]} - ${Math.ceil(boss.health)}/${boss.maxHealth}`, canvas.width / 2, barY - 10)
+           ctx.fillText(`${bossNames[boss.type]} - ${Math.ceil(displayHP)}/${displayMaxHP}`, canvas.width / 2, barY - 10)
     }
 
      projectilesRef.current.forEach((proj) => {

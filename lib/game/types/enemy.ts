@@ -1,4 +1,3 @@
-// lib/game/types/enemy.ts
 
 import type { GameObject } from "./player"
 
@@ -19,6 +18,7 @@ export type Enemy = GameObject & {
   color?: string
   hitFlash?: number
   contactCooldown?: number
+   isHiveEnemy?: boolean
 }
 
 export type FlyingSaucer = GameObject & {
