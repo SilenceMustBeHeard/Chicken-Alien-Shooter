@@ -113,4 +113,21 @@ queenEnraged?: boolean
       stunTimer: number; healTimer: number;
        isHealing: boolean }
   hivePhase2Timer?: number
+
+  // theHive — Phase 3
+hiveSpawns?: {
+  x: number
+  y: number
+  health: number
+  maxHealth: number
+  shootTimer: number
+  figureEightPhase: number
+  figureEightCenterX: number
+  figureEightCenterY: number
+  figureEightRadiusX: number
+  figureEightRadiusY: number
+}[]
+
+// theHive — Phase 4 (grunts + tanks, but we track total HP)
+hiveFinalWave?: boolean
 }

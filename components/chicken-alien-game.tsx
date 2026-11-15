@@ -2059,300 +2059,64 @@ case "queenXenoHen": {
         }
 
 
-              case "theHive": {
-          if (boss.spawnTimer === undefined) boss.spawnTimer = 0
-          boss.spawnTimer += deltaTime
-
-          if (boss.hivePhase === undefined) boss.hivePhase = 1
-          if (boss.hiveAttackTimer === undefined) boss.hiveAttackTimer = 0
-          if (boss.hiveAttackChoice === undefined) boss.hiveAttackChoice = 0
-
-          const dx = player.x - boss.x
-          const dy = player.y - boss.y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          const angle = Math.atan2(dy, dx)
-
-          // PHASE 1: AMALGAM
-
-          if (boss.hivePhase === 1) {
-            // Chaotic movement — random walk + slight drift toward player
-            const driftX = Math.cos(angle) * boss.speed * 0.5
-            const driftY = Math.sin(angle) * boss.speed * 0.5
-            const chaosX = (Math.random() - 0.5) * boss.speed * 2
-            const chaosY = (Math.random() - 0.5) * boss.speed * 2
-
-                        //  SHOCK AURA (arms whipping) 
-
-            const shockAuraRadius = boss.radius * 3 // 3× body radius
-            const isInShockAura = dist < shockAuraRadius + player.radius
-
-            if (isInShockAura && player.invincibleTime <= 0 && !player.shield) {
-              // 10 damage per second (10 / 1000 * deltaTime)
-              const shockDps = 10
-              const damagePerFrame = (shockDps / 1000) * deltaTime
-              player.health -= damagePerFrame
-
-              // Visual feedback (floating text every ~1s)
-              if (Math.floor(boss.spawnTimer / 1000) !== Math.floor((boss.spawnTimer - deltaTime) / 1000)) {
-                addFloatingText(player.x, player.y - 30, `-${shockDps}`, "#fbbf24", 16)
-              }
-
-              if (player.health <= 0) {
-                chickenDeathSound()
-                gameStateRef.current = "gameOver"
-                setGameState("gameOver")
-                setFinalScore(scoreRef.current)
-                setFinalKillCount(killCountRef.current)
-                setFinalWave(waveRef.current)
-              }
-            }
-
-            boss.x += (driftX + chaosX) * (deltaTime / 16.667)
-            boss.y += (driftY + chaosY) * (deltaTime / 16.667)
-
-            // Clamp to canvas (with margin for body)
-            boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
-            boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
-
-            // Attack timer — every 1.5s
-            boss.hiveAttackTimer = (boss.hiveAttackTimer || 0) + deltaTime
-            if (boss.hiveAttackTimer >= 1500) {
-              boss.hiveAttackTimer = 0
-
-              // Random attack choice: 0 = spread, 1 = radial, 2 = spawn minions
-              const choice = Math.floor(Math.random() * 3)
-              boss.hiveAttackChoice = choice
-
-              if (choice === 0) {
-                // Spread shot — 5 projectiles in cone
-                for (let i = -2; i <= 2; i++) {
-                  const spreadAngle = angle + i * 0.18
-                  projectilesRef.current.push({
-                    x: boss.x,
-                    y: boss.y,
-                    radius: 8,
-                    vx: Math.cos(spreadAngle) * 4,
-                    vy: Math.sin(spreadAngle) * 4,
-                    damage: 10,
-                    color: "#fbbf24",
-                    isEnemyProjectile: true,
-                  })
-                }
-                playSound(400, 0.15, "square")
-              } else if (choice === 1) {
-                // Radial burst — 8 projectiles in circle
-                for (let i = 0; i < 8; i++) {
-                  const radialAngle = (i / 8) * Math.PI * 2
-                  projectilesRef.current.push({
-                    x: boss.x,
-                    y: boss.y,
-                    radius: 7,
-                    vx: Math.cos(radialAngle) * 3.5,
-                    vy: Math.sin(radialAngle) * 3.5,
-                    damage: 8,
-                    color: "#f97316",
-                    isEnemyProjectile: true,
-                  })
-                }
-                playSound(500, 0.2, "sawtooth")
-              } else {
-                // Spawn 2 minions (grunts)
-                for (let i = 0; i < 2; i++) {
-                  const minionAngle = Math.random() * Math.PI * 2
-                  const spawnDist = boss.radius + 60 + Math.random() * 40
-                  enemiesRef.current.push({
-                    x: boss.x + Math.cos(minionAngle) * spawnDist,
-                    y: boss.y + Math.sin(minionAngle) * spawnDist,
-                    radius: 12,
-                    speed: 1.0,
-                    health: 3,
-                    maxHealth: 3,
-                    groupId: Date.now() + i,
-                    type: "grunt",
-                    alienType: "grunt",
-                    color: getAlienColor("grunt"),
-                  })
-                }
-                playSound(600, 0.25, "triangle")
-              }
-            }
-
-            // Melee damage if player is very close
-            if (dist < 100 + player.radius) {
+                  case "theHive": {
+          const behavior = getBossBehavior("theHive")
+          const bossCtx = createBossContext({
+            boss,
+            player,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            deltaTime,
+            bossTime: gameTimeRef.current,
+            enemiesRef,
+            projectilesRef,
+            getWave: () => waveRef.current,
+            killBoss: () => {
+              bossRef.current = null
+              lastBossWaveRef.current = waveRef.current
+            },
+            damagePlayer: (amount, _source) => {
               if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= 20
+                player.health -= amount
                 player.invincibleTime = 60
                 chickenHitSound()
-                addScreenShake(12)
-                addFloatingText(player.x, player.y - 30, "-20", "#fbbf24", 22)
-
-                const pushAngle = Math.atan2(dy, dx)
-                player.x += Math.cos(pushAngle) * 50
-                player.y += Math.sin(pushAngle) * 50
-
-                if (player.health <= 0) {
-                  chickenDeathSound()
-                  gameStateRef.current = "gameOver"
-                  setGameState("gameOver")
-                  setFinalScore(scoreRef.current)
-                  setFinalKillCount(killCountRef.current)
-                  setFinalWave(waveRef.current)
-                }
               }
-            }
+            },
+            healPlayer: (amount) => {
+              player.health = Math.min(player.maxHealth, player.health + amount)
+            },
+            projectiles: gameContext.projectiles,
+            enemies: gameContext.enemies,
+            particles: gameContext.particles,
+            floatingTexts: gameContext.floatingTexts,
+            screenShake: gameContext.screenShake,
+            audio: gameContext.audio,
+            ui: gameContext.ui,
+          })
+          behavior.update(boss, bossCtx)
 
-                     // PHASE TRANSITION: HP < 600
-            if (boss.health <= 600) {
-              boss.hivePhase = 2
-              boss.hivePhase2Timer = 0
+          if (gameStateRef.current === "gameOver") {
+            setFinalScore(scoreRef.current)
+            setFinalKillCount(killCountRef.current)
+            setFinalWave(waveRef.current)
+            break
+          }
 
-              // Initialize Lord A (shield) — top-left
-              boss.hiveLordA = {
-                x: canvas.width * 0.3,
-                y: canvas.height * 0.2,
-                health: 300,
-                maxHealth: 300,
-                shootTimer: 0,
-              }
-
-              // Initialize Lord B (healer) — top-right
-              boss.hiveLordB = {
-                x: canvas.width * 0.7,
-                y: canvas.height * 0.2,
-                health: 300,
-                maxHealth: 300,
-                stunTimer: 0,
-                healTimer: 0,
-                isHealing: false,
-              }
-
-              // Hide main boss (it becomes the two lords)
-              boss.health = 600  // will be tracked separately
-              boss.x = -9999  // off-screen
-              boss.y = -9999
-              boss.radius = 0  // no collision
-
-              playSound(200, 0.5, "sawtooth")
-              addScreenShake(30)
-              createParticles(canvas.width * 0.3, canvas.height * 0.2, "#3b82f6")
-              createParticles(canvas.width * 0.7, canvas.height * 0.2, "#22c55e")
-            }
-          } else if (boss.hivePhase === 2) {
-            // PHASE 2: 2 HIVE LORDS
-            const lordA = boss.hiveLordA
-            const lordB = boss.hiveLordB
-
-            if (!lordA || !lordB) break
-
-            boss.hivePhase2Timer = (boss.hivePhase2Timer || 0) + deltaTime
-
-            //  ORBIT TOP OF SCREEN 
-            const orbitCenterX = canvas.width / 2
-            const orbitCenterY = canvas.height * 0.2
-            const orbitRadius = 250
-            const orbitSpeed = boss.hivePhase2Timer / 3000
-
-            // Default positions (orbit)
-            let targetAx = orbitCenterX + Math.cos(orbitSpeed) * orbitRadius
-            let targetAy = orbitCenterY + Math.sin(orbitSpeed) * orbitRadius * 0.5
-            let targetBx = orbitCenterX + Math.cos(orbitSpeed + Math.PI) * orbitRadius
-            let targetBy = orbitCenterY + Math.sin(orbitSpeed + Math.PI) * orbitRadius * 0.5
-
-            //  HEAL PHASE (every 8s) 
-            const healPhaseActive = boss.hivePhase2Timer % 8000 < 5000
-            lordB.isHealing = healPhaseActive
-
-            if (healPhaseActive) {
-              // Stand next to each other (80px apart)
-              targetAx = orbitCenterX - 40
-              targetAy = orbitCenterY
-              targetBx = orbitCenterX + 40
-              targetBy = orbitCenterY
-
-              // Heal both lords +10 HP/s
-              const healPerFrame = (10 / 1000) * deltaTime
-              lordA.health = Math.min(lordA.maxHealth, lordA.health + healPerFrame)
-              lordB.health = Math.min(lordB.maxHealth, lordB.health + healPerFrame)
-            }
-
-            // Smooth movement toward targets
-            lordA.x += (targetAx - lordA.x) * 0.05
-            lordA.y += (targetAy - lordA.y) * 0.05
-            lordB.x += (targetBx - lordB.x) * 0.05
-            lordB.y += (targetBy - lordB.y) * 0.05
-
-            //  LORD A: SHOOT PROJECTILES (every 1.5s) 
-            lordA.shootTimer += deltaTime
-            if (lordA.shootTimer >= 1500) {
-              lordA.shootTimer = 0
-
-              const angleToPlayer = Math.atan2(player.y - lordA.y, player.x - lordA.x)
-              projectilesRef.current.push({
-                x: lordA.x,
-                y: lordA.y,
-                radius: 8,
-                vx: Math.cos(angleToPlayer) * 5,
-                vy: Math.sin(angleToPlayer) * 5,
-                damage: 12,
-                color: "#3b82f6",
-                isEnemyProjectile: true,
-              })
-              playSound(500, 0.15, "square")
-            }
-
-            //  LORD B: STUN FIELD (every 3s) 
-            lordB.stunTimer += deltaTime
-            if (lordB.stunTimer >= 3000) {
-              lordB.stunTimer = 0
-
-              // Check if player is in stun field
-              const stunRadius = 150
-              const stunDx = player.x - lordB.x
-              const stunDy = player.y - lordB.y
-              const stunDist = Math.sqrt(stunDx * stunDx + stunDy * stunDy)
-
-              if (stunDist < stunRadius + player.radius) {
-                // Stun player for 6s (360 frames)
-                // A simple approach -  slow the player
-                player.invincibleTime = Math.max(player.invincibleTime, 360)
-                addScreenShake(15)
-                addFloatingText(player.x, player.y - 30, "STUNNED!", "#a855f7", 24)
-                chickenHitSound()
-              }
-
-              playSound(300, 0.3, "sawtooth")
-            }
-
-            //  COLLISION WITH PLAYER (melee) 
-            const distA = Math.sqrt((player.x - lordA.x) ** 2 + (player.y - lordA.y) ** 2)
-            const distB = Math.sqrt((player.x - lordB.x) ** 2 + (player.y - lordB.y) ** 2)
-            const lordRadius = 30
-
-            if ((distA < player.radius + lordRadius || distB < player.radius + lordRadius) && player.invincibleTime <= 0 && !player.shield) {
-              player.health -= 15
-              player.invincibleTime = 60
-              chickenHitSound()
-              addScreenShake(10)
-              addFloatingText(player.x, player.y - 30, "-15", "#ff0000", 20)
-
-              if (player.health <= 0) {
-                chickenDeathSound()
-                gameStateRef.current = "gameOver"
-                setGameState("gameOver")
-                setFinalScore(scoreRef.current)
-                setFinalKillCount(killCountRef.current)
-                setFinalWave(waveRef.current)
-              }
-            }
-
-            //  TRANSITION TO PHASE 3: total HP < 400 
-            if (lordA.health + lordB.health < 400) {
-              console.log("[HIVE] Phase 2 → Phase 3 transition (not yet implemented)")
-              boss.hivePhase = 3
+          if (!bossRef.current) {
+            scoreRef.current += 1000  // bigger reward for final boss
+            setScore(scoreRef.current)
+            killCountRef.current += 1
+            setKillCount(killCountRef.current)
+            addFloatingText(boss.x, boss.y - 40, "+1000", "#ffff00", 32)
+            addScreenShake(20)
+            playSound(150, 0.8, "sawtooth")
+            for (let p = 0; p < 5; p++) {
+              spawnWeaponPowerUp(
+                boss.x + (Math.random() - 0.5) * 100,
+                boss.y + (Math.random() - 0.5) * 100,
+              )
             }
           }
-          
-
           break
         }
 
@@ -2738,35 +2502,49 @@ case "queenXenoHen": {
         return true
       }
 
-      //  HIVE PHASE 2: PLAYER PROJECTILES HIT LORDS 
+            // HIVE PHASE 2 & 3: PLAYER PROJECTILES HIT LORDS/SPAWNS 
       {
         const hiveBoss = bossRef.current
         if (
           hiveBoss &&
-          hiveBoss.hivePhase === 2 &&
-          hiveBoss.hiveLordA &&
-          hiveBoss.hiveLordB &&
+          (hiveBoss.hivePhase === 2 || hiveBoss.hivePhase === 3) &&
           !proj.isEnemyProjectile
         ) {
-          const lordA = hiveBoss.hiveLordA
-          const lordB = hiveBoss.hiveLordB
-          const lordRadius = 30
+          // Phase 2: lords
+          if (hiveBoss.hivePhase === 2 && hiveBoss.hiveLordA && hiveBoss.hiveLordB) {
+            const lordA = hiveBoss.hiveLordA
+            const lordB = hiveBoss.hiveLordB
+            const lordRadius = 30
+            const shieldReduction = 0.5
 
-          const dA = Math.sqrt((proj.x - lordA.x) ** 2 + (proj.y - lordA.y) ** 2)
-          const dB = Math.sqrt((proj.x - lordB.x) ** 2 + (proj.y - lordB.y) ** 2)
+            const dA = Math.sqrt((proj.x - lordA.x) ** 2 + (proj.y - lordA.y) ** 2)
+            const dB = Math.sqrt((proj.x - lordB.x) ** 2 + (proj.y - lordB.y) ** 2)
 
-          const shieldReduction = 0.5
-
-          if (dA < proj.radius + lordRadius) {
-            lordA.health -= proj.damage * shieldReduction
-            createParticles(proj.x, proj.y, "#3b82f6")
-            return false
+            if (dA < proj.radius + lordRadius) {
+              lordA.health -= proj.damage * shieldReduction
+              createParticles(proj.x, proj.y, "#3b82f6")
+              return false
+            }
+            if (dB < proj.radius + lordRadius) {
+              lordB.health -= proj.damage
+              createParticles(proj.x, proj.y, "#22c55e")
+              return false
+            }
           }
 
-          if (dB < proj.radius + lordRadius) {
-            lordB.health -= proj.damage
-            createParticles(proj.x, proj.y, "#22c55e")
-            return false
+          // Phase 3: spawns
+          if (hiveBoss.hivePhase === 3 && hiveBoss.hiveSpawns) {
+            for (const spawn of hiveBoss.hiveSpawns) {
+              const sdx = proj.x - spawn.x
+              const sdy = proj.y - spawn.y
+              const sdist = Math.sqrt(sdx * sdx + sdy * sdy)
+
+              if (sdist < proj.radius + 25) {
+                spawn.health -= proj.damage
+                createParticles(proj.x, proj.y, "#dc2626")
+                return false
+              }
+            }
           }
         }
       }
@@ -3378,555 +3156,11 @@ case "charge":
 
 // The Hive 
 
-      } else if (boss.type === "theHive") {
-        const r = boss.radius
-        const t = bossTime
-        const bx = boss.x
-        const by = boss.y
-
-        const hpPercent = boss.health / boss.maxHealth
-        const isLowHP = hpPercent < 0.75  // After first transition
-
-        const breath = 1 + Math.sin(t / 250) * 0.05
-        const wobble = Math.sin(t / 180) * r * 0.03
-
-        // HIVE AURA (yellow-orange, pulsing)
-
-        ctx.save()
-        ctx.globalCompositeOperation = "lighter"
-
-        const auraPulse = 0.5 + Math.sin(t / 150) * 0.5
-        const auraColor = isLowHP ? "255, 100, 0" : "251, 191, 36"
-
-        const auraGrad = ctx.createRadialGradient(bx, by, r * 0.3, bx, by, r * 2.2)
-        auraGrad.addColorStop(0, `rgba(${auraColor}, ${0.2 + auraPulse * 0.1})`)
-        auraGrad.addColorStop(0.5, `rgba(${auraColor}, ${0.1 + auraPulse * 0.05})`)
-        auraGrad.addColorStop(1, `rgba(${auraColor}, 0)`)
-
-        ctx.fillStyle = auraGrad
-        ctx.beginPath()
-        ctx.arc(bx, by, r * 2.2, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Floating particles (honey drops)
-
-        for (let i = 0; i < 10; i++) {
-          const pa = t / 500 + (i / 10) * Math.PI * 2
-          const pd = r * (1.2 + Math.sin(t / 200 + i) * 0.3)
-          const px = bx + Math.cos(pa) * pd
-          const py = by + Math.sin(pa) * pd * 0.6
-
-          ctx.fillStyle = `rgba(251, 191, 36, ${0.5 + Math.sin(t / 100 + i) * 0.3})`
-          ctx.beginPath()
-          ctx.arc(px, py, r * 0.05, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        ctx.restore()
-
-        // SHOCK AURA (arms whipping)
-        const shockAuraRadius = r * 3
-        const shockPulse = 0.5 + Math.sin(t / 80) * 0.5  // fast pulse (sync with arms)
-
-        ctx.save()
-        ctx.globalCompositeOperation = "lighter"
-
-        // Filled aura
-        const shockGrad = ctx.createRadialGradient(bx, by, r, bx, by, shockAuraRadius)
-        shockGrad.addColorStop(0, `rgba(251, 191, 36, ${0.15 + shockPulse * 0.1})`)
-        shockGrad.addColorStop(0.7, `rgba(251, 146, 60, ${0.08 + shockPulse * 0.05})`)
-        shockGrad.addColorStop(1, "rgba(251, 191, 36, 0)")
-        ctx.fillStyle = shockGrad
-        ctx.beginPath()
-        ctx.arc(bx, by, shockAuraRadius, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Pulsing border
-        ctx.strokeStyle = `rgba(251, 191, 36, ${0.5 + shockPulse * 0.3})`
-        ctx.lineWidth = 3
-        ctx.setLineDash([15, 10])
-        ctx.lineDashOffset = -t / 30
-        ctx.beginPath()
-        ctx.arc(bx, by, shockAuraRadius, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.setLineDash([])
-
-        // Whipping arm trails (visual sync)
-        for (let i = 0; i < 4; i++) {
-          const trailAngle = (i / 4) * Math.PI * 2 + t / 150
-          const trailRadius = shockAuraRadius * (0.85 + Math.sin(t / 100 + i) * 0.1)
-          const tx = bx + Math.cos(trailAngle) * trailRadius
-          const ty = by + Math.sin(trailAngle) * trailRadius
-
-          ctx.fillStyle = `rgba(251, 191, 36, ${0.4 + shockPulse * 0.3})`
-          ctx.beginPath()
-          ctx.arc(tx, ty, r * 0.08, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        ctx.restore()
-
-        // BODY (large, uneven ellipse)
-        ctx.save()
-        ctx.translate(bx + wobble, by)
-        ctx.scale(breath, breath)
-
-        // Shadow
-        ctx.fillStyle = "rgba(0, 0, 0, 0.4)"
-        ctx.beginPath()
-        ctx.ellipse(0, r * 1.05, r * 1.0, r * 0.25, 0, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Body base (irregular blob)
-        const bodyGrad = ctx.createRadialGradient(
-          -r * 0.3, -r * 0.3, r * 0.1,
-          0, 0, r * 1.15
-        )
-        bodyGrad.addColorStop(0, "#7c2d12")
-        bodyGrad.addColorStop(0.4, "#451a03")
-        bodyGrad.addColorStop(0.8, "#291002")
-        bodyGrad.addColorStop(1, "#0a0501")
-
-        ctx.fillStyle = bodyGrad
-        ctx.strokeStyle = "#1c0a01"
-        ctx.lineWidth = r * 0.06
-
-        // Irregular body shape
-        ctx.beginPath()
-        const bodyPoints = 20
-        for (let i = 0; i <= bodyPoints; i++) {
-          const a = (i / bodyPoints) * Math.PI * 2
-          const bulge =
-            Math.sin(a * 4 + t / 400) * r * 0.06 +
-            Math.cos(a * 6 - t / 300) * r * 0.04
-          const rad = r * 1.0 + bulge
-          const px = Math.cos(a) * rad
-          const py = Math.sin(a) * rad * 0.9
-          if (i === 0) ctx.moveTo(px, py)
-          else ctx.lineTo(px, py)
-        }
-        ctx.closePath()
-        ctx.fill()
-        ctx.stroke()
-
-        // Honeycomb pattern (hexagons on body)
-
-        ctx.strokeStyle = "rgba(251, 191, 36, 0.5)"
-        ctx.lineWidth = r * 0.02
-        for (let i = 0; i < 8; i++) {
-          const ha = (i / 8) * Math.PI * 2 + t / 3000
-          const hr = r * (0.3 + (i % 3) * 0.15)
-          const hx = Math.cos(ha) * hr
-          const hy = Math.sin(ha) * hr * 0.8
-
-          // Small hexagon
-          const hexSize = r * 0.1
-          ctx.beginPath()
-          for (let j = 0; j < 6; j++) {
-            const angle = (j / 6) * Math.PI * 2
-            const px = hx + Math.cos(angle) * hexSize
-            const py = hy + Math.sin(angle) * hexSize
-            if (j === 0) ctx.moveTo(px, py)
-            else ctx.lineTo(px, py)
-          }
-          ctx.closePath()
-          ctx.stroke()
-        }
-
-        // Yellow spots (honey pools)
-        ctx.fillStyle = "rgba(251, 191, 36, 0.6)"
-        for (let i = 0; i < 5; i++) {
-          const sa = (i / 5) * Math.PI * 2 + t / 2500
-          const sr = r * (0.4 + (i % 2) * 0.2)
-          const sx = Math.cos(sa) * sr
-          const sy = Math.sin(sa) * sr * 0.7
-          ctx.beginPath()
-          ctx.ellipse(sx, sy, r * 0.12, r * 0.08, sa, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        // 3 HEADS (hydra style)
-
-        const headPositions = [
-          { x: -r * 0.6, y: -r * 0.5, side: -1 },  // left
-          { x: 0, y: -r * 0.75, side: 0 },          // center (biggest)
-          { x: r * 0.6, y: -r * 0.5, side: 1 },     // right
-        ]
-
-        for (let i = 0; i < headPositions.length; i++) {
-          const head = headPositions[i]
-          const isCenter = i === 1
-          const headR = r * (isCenter ? 0.35 : 0.28)
-          const headSway = Math.sin(t / 300 + i * 1.5) * r * 0.05
-
-          // Head shadow
-          ctx.fillStyle = "#1c0a01"
-          ctx.beginPath()
-          ctx.arc(head.x, head.y + headSway, headR * 1.05, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Head
-          const headGrad = ctx.createRadialGradient(
-            head.x - headR * 0.3, head.y - headR * 0.3 + headSway, headR * 0.05,
-            head.x, head.y + headSway, headR * 1.1
-          )
-          headGrad.addColorStop(0, "#a16207")
-          headGrad.addColorStop(0.5, "#713f12")
-          headGrad.addColorStop(1, "#291002")
-
-          ctx.fillStyle = headGrad
-          ctx.strokeStyle = "#1c0a01"
-          ctx.lineWidth = r * 0.025
-
-          ctx.beginPath()
-          ctx.arc(head.x, head.y + headSway, headR, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-
-          // Eyes (different for each head)
-          if (i === 0) {
-            // Left head — 1 eye
-            ctx.fillStyle = "#0a0000"
-            ctx.beginPath()
-            ctx.arc(head.x - headR * 0.2, head.y + headSway, headR * 0.3, 0, Math.PI * 2)
-            ctx.fill()
-
-            ctx.shadowColor = "#fbbf24"
-            ctx.shadowBlur = 10
-            ctx.fillStyle = "#fbbf24"
-            ctx.beginPath()
-            ctx.arc(head.x - headR * 0.2, head.y + headSway, headR * 0.15, 0, Math.PI * 2)
-            ctx.fill()
-            ctx.shadowBlur = 0
-          } else if (i === 1) {
-            // Center head — 2 eyes
-            for (const side of [-1, 1]) {
-              ctx.fillStyle = "#0a0000"
-              ctx.beginPath()
-              ctx.arc(head.x + side * headR * 0.3, head.y + headSway, headR * 0.25, 0, Math.PI * 2)
-              ctx.fill()
-
-              ctx.shadowColor = "#fbbf24"
-              ctx.shadowBlur = 15
-              ctx.fillStyle = "#fbbf24"
-              ctx.beginPath()
-              ctx.arc(head.x + side * headR * 0.3, head.y + headSway, headR * 0.12, 0, Math.PI * 2)
-              ctx.fill()
-              ctx.shadowBlur = 0
-            }
-          } else {
-            // Right head — 3 eyes (alien)
-            for (let e = -1; e <= 1; e++) {
-              const ex = head.x + e * headR * 0.25
-              const ey = head.y + headSway + Math.abs(e) * headR * 0.15
-
-              ctx.fillStyle = "#0a0000"
-              ctx.beginPath()
-              ctx.arc(ex, ey, headR * 0.2, 0, Math.PI * 2)
-              ctx.fill()
-
-              ctx.shadowColor = "#ef4444"
-              ctx.shadowBlur = 10
-              ctx.fillStyle = "#ef4444"
-              ctx.beginPath()
-              ctx.arc(ex, ey, headR * 0.1, 0, Math.PI * 2)
-              ctx.fill()
-              ctx.shadowBlur = 0
-            }
-          }
-
-          // Mouth (each head)
-          ctx.fillStyle = "#0a0000"
-          ctx.beginPath()
-          ctx.ellipse(
-            head.x,
-            head.y + headSway + headR * 0.4,
-            headR * 0.4,
-            headR * 0.15,
-            0,
-            0,
-            Math.PI * 2
-          )
-          ctx.fill()
-
-          // Teeth
-          ctx.fillStyle = "#e5d5b8"
-          for (let tooth = -1; tooth <= 1; tooth++) {
-            const tx = head.x + tooth * headR * 0.15
-            const ty = head.y + headSway + headR * 0.35
-
-            ctx.beginPath()
-            ctx.moveTo(tx - headR * 0.05, ty)
-            ctx.lineTo(tx + headR * 0.05, ty)
-            ctx.lineTo(tx, ty + headR * 0.12)
-            ctx.closePath()
-            ctx.fill()
-          }
-        }
-
-        // 4 ARMS (different sizes)
-
-        const armPositions = [
-          { x: -r * 0.9, y: -r * 0.1, angle: -0.5, len: 2 },  // left
-          { x: r * 0.9, y: -r * 0.1, angle: 0.5, len: 2.4 },    // right
-          { x: -r * 0.5, y: r * 0.4, angle: 0.8, len: 1.5 },    // bottom-left
-          { x: r * 0.5, y: r * 0.4, angle: -0.8, len: 1.3 },    // bottom-right
-        ]
-
-        for (let i = 0; i < armPositions.length; i++) {
-          const arm = armPositions[i]
-         const armSway = Math.sin(t / 400 + i * 2) * r * 0.15  
-
-          ctx.strokeStyle = "#451a03"
-          ctx.lineWidth = r * 0.15
-          ctx.lineCap = "round"
-
-          const endX = arm.x + Math.cos(arm.angle + armSway) * r * arm.len
-          const endY = arm.y + Math.sin(arm.angle + armSway) * r * arm.len
-
-          ctx.beginPath()
-          ctx.moveTo(arm.x, arm.y)
-          ctx.quadraticCurveTo(
-            (arm.x + endX) / 2,
-            (arm.y + endY) / 2 - r * 0.2,
-            endX,
-            endY
-          )
-          ctx.stroke()
-
-          // Claw at end
-          ctx.fillStyle = "#1c0a01"
-          ctx.beginPath()
-          ctx.arc(endX, endY, r * 0.1, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Sharp claws
-          for (let c = -1; c <= 1; c++) {
-            ctx.strokeStyle = "#e5d5b8"
-            ctx.lineWidth = r * 0.03
-            ctx.beginPath()
-            ctx.moveTo(endX, endY)
-            ctx.lineTo(
-              endX + Math.cos(arm.angle + armSway + c * 0.3) * r * 0.15,
-              endY + Math.sin(arm.angle + armSway + c * 0.3) * r * 0.15
-            )
-            ctx.stroke()
-          }
-
-          ctx.lineCap = "butt"
-        }
-
-        // 2 TATTERED WINGS
-
-        for (const side of [-1, 1]) {
-          ctx.save()
-           ctx.translate(side * r * 1.0, -r * 0.4)
-          ctx.rotate(side * (0.3 + Math.sin(t / 200) * 0.1))
-
-          ctx.fillStyle = "rgba(251, 191, 36, 0.55)"  
-          ctx.strokeStyle = "#a16207"
-          ctx.lineWidth = r * 0.02
-
-          ctx.beginPath()
-          ctx.moveTo(0, 0)
-          ctx.quadraticCurveTo(side * r * 0.8, -r * 0.5, side * r * 1.2, -r * 0.2)
-          ctx.quadraticCurveTo(side * r * 0.9, r * 0.2, side * r * 0.6, r * 0.1)
-          // Tattered edge
-          for (let i = 0; i < 4; i++) {
-            const tx = side * r * (0.6 - i * 0.15)
-            const ty = r * (0.1 - i * 0.05)
-            ctx.lineTo(tx, ty + r * 0.15)
-            ctx.lineTo(tx - side * r * 0.05, ty + r * 0.05)
-          }
-          ctx.closePath()
-          ctx.fill()
-          ctx.stroke()
-
-          ctx.restore()
-        }
-
-        // SPLIT TAIL (3 branches)
-
-        const tailBaseX = 0
-        const tailBaseY = r * 0.7
-        const tailWave = Math.sin(t / 200) * r * 0.1
-
-        for (let i = -1; i <= 1; i++) {
-          ctx.strokeStyle = "#451a03"
-          ctx.lineWidth = r * 0.12
-          ctx.lineCap = "round"
-
-          const endX = i * r * 0.4 + tailWave
-          const endY = r * 1.6
-
-          ctx.beginPath()
-          ctx.moveTo(tailBaseX, tailBaseY)
-          ctx.quadraticCurveTo(
-            i * r * 0.3,
-            r * 1.1,
-            endX,
-            endY
-          )
-          ctx.stroke()
-
-          // Tail tip glow
-          ctx.fillStyle = "#fbbf24"
-          ctx.shadowColor = "#fbbf24"
-          ctx.shadowBlur = 10
-          ctx.beginPath()
-          ctx.arc(endX, endY, r * 0.06, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.shadowBlur = 0
-        }
-        ctx.lineCap = "butt"
-
-        ctx.restore()
-
-        // PHASE 2: HIVE LORDS
-        if (boss.hivePhase === 2 && boss.hiveLordA && boss.hiveLordB) {
-          const lordA = boss.hiveLordA
-          const lordB = boss.hiveLordB
-          const lordRadius = 30
-
-          //  LORD A (Shield, blue) 
-          ctx.save()
-          ctx.translate(lordA.x, lordA.y)
-
-          // Shield dome (always active)
-          const shieldPulse = 0.5 + Math.sin(t / 200) * 0.5
-          const shieldGrad = ctx.createRadialGradient(0, 0, lordRadius, 0, 0, lordRadius * 2)
-          shieldGrad.addColorStop(0, `rgba(100, 150, 255, ${0.1 + shieldPulse * 0.1})`)
-          shieldGrad.addColorStop(0.7, `rgba(59, 130, 246, ${0.15 + shieldPulse * 0.1})`)
-          shieldGrad.addColorStop(1, "rgba(100, 150, 255, 0)")
-          ctx.fillStyle = shieldGrad
-          ctx.beginPath()
-          ctx.arc(0, 0, lordRadius * 2, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Shield border
-          ctx.strokeStyle = `rgba(147, 197, 253, ${0.5 + shieldPulse * 0.3})`
-          ctx.lineWidth = 2
-          ctx.setLineDash([8, 6])
-          ctx.lineDashOffset = -t / 40
-          ctx.beginPath()
-          ctx.arc(0, 0, lordRadius * 1.9, 0, Math.PI * 2)
-          ctx.stroke()
-          ctx.setLineDash([])
-
-          // Body
-          const bodyGradA = ctx.createRadialGradient(
-            -lordRadius * 0.3, -lordRadius * 0.3, lordRadius * 0.1,
-            0, 0, lordRadius
-          )
-          bodyGradA.addColorStop(0, "#3b82f6")
-          bodyGradA.addColorStop(0.5, "#1e3a8a")
-          bodyGradA.addColorStop(1, "#0c1e4a")
-
-          ctx.fillStyle = bodyGradA
-          ctx.strokeStyle = "#0c1e4a"
-          ctx.lineWidth = 3
-          ctx.beginPath()
-          ctx.arc(0, 0, lordRadius, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-
-          // 1 eye (cyclops)
-          ctx.fillStyle = "#0a0015"
-          ctx.beginPath()
-          ctx.arc(0, -lordRadius * 0.1, lordRadius * 0.3, 0, Math.PI * 2)
-          ctx.fill()
-
-          ctx.shadowColor = "#00ffff"
-          ctx.shadowBlur = 15
-          ctx.fillStyle = "#00ffff"
-          ctx.beginPath()
-          ctx.arc(0, -lordRadius * 0.1, lordRadius * 0.15, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.shadowBlur = 0
-
-          // HP bar
-          const hpPercentA = lordA.health / lordA.maxHealth
-          ctx.fillStyle = "#1e293b"
-          ctx.fillRect(-lordRadius, -lordRadius - 20, lordRadius * 2, 5)
-          ctx.fillStyle = "#3b82f6"
-          ctx.fillRect(-lordRadius, -lordRadius - 20, lordRadius * 2 * hpPercentA, 5)
-
-          ctx.restore()
-
-          // LORD B (Healer, green) 
-          ctx.save()
-          ctx.translate(lordB.x, lordB.y)
-
-          // Heal aura (if active)
-          if (lordB.isHealing) {
-            const healPulse = 0.5 + Math.sin(t / 150) * 0.5
-            const healGrad = ctx.createRadialGradient(0, 0, lordRadius, 0, 0, lordRadius * 2.5)
-            healGrad.addColorStop(0, `rgba(34, 197, 94, ${0.15 + healPulse * 0.1})`)
-            healGrad.addColorStop(0.7, `rgba(22, 163, 74, ${0.1 + healPulse * 0.05})`)
-            healGrad.addColorStop(1, "rgba(34, 197, 94, 0)")
-            ctx.fillStyle = healGrad
-            ctx.beginPath()
-            ctx.arc(0, 0, lordRadius * 2.5, 0, Math.PI * 2)
-            ctx.fill()
-
-            // Heal particles
-            for (let i = 0; i < 6; i++) {
-              const pa = t / 300 + (i / 6) * Math.PI * 2
-              const pd = lordRadius * (1.5 + Math.sin(t / 200 + i) * 0.3)
-              const px = Math.cos(pa) * pd
-              const py = Math.sin(pa) * pd
-
-              ctx.fillStyle = `rgba(34, 197, 94, ${0.5 + Math.sin(t / 100 + i) * 0.3})`
-              ctx.beginPath()
-              ctx.arc(px, py, 3, 0, Math.PI * 2)
-              ctx.fill()
-            }
-          }
-
-          // Body
-          const bodyGradB = ctx.createRadialGradient(
-            -lordRadius * 0.3, -lordRadius * 0.3, lordRadius * 0.1,
-            0, 0, lordRadius
-          )
-          bodyGradB.addColorStop(0, "#22c55e")
-          bodyGradB.addColorStop(0.5, "#166534")
-          bodyGradB.addColorStop(1, "#0a2e1a")
-
-          ctx.fillStyle = bodyGradB
-          ctx.strokeStyle = "#0a2e1a"
-          ctx.lineWidth = 3
-          ctx.beginPath()
-          ctx.arc(0, 0, lordRadius, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-
-          // 2 eyes
-          for (const side of [-1, 1]) {
-            const ex = side * lordRadius * 0.3
-            const ey = -lordRadius * 0.1
-
-            ctx.fillStyle = "#0a0015"
-            ctx.beginPath()
-            ctx.arc(ex, ey, lordRadius * 0.2, 0, Math.PI * 2)
-            ctx.fill()
-
-            ctx.shadowColor = "#22ff22"
-            ctx.shadowBlur = 12
-            ctx.fillStyle = "#22ff22"
-            ctx.beginPath()
-            ctx.arc(ex, ey, lordRadius * 0.1, 0, Math.PI * 2)
-            ctx.fill()
-            ctx.shadowBlur = 0
-          }
-
-          // HP bar
-          const hpPercentB = lordB.health / lordB.maxHealth
-          ctx.fillStyle = "#1e293b"
-          ctx.fillRect(-lordRadius, -lordRadius - 20, lordRadius * 2, 5)
-          ctx.fillStyle = "#22c55e"
-          ctx.fillRect(-lordRadius, -lordRadius - 20, lordRadius * 2 * hpPercentB, 5)
-
-          ctx.restore()
+          } else if (boss.type === "theHive") {
+        const behavior = getBossBehavior("theHive")
+        const playerForDraw = playerRef.current
+        if (playerForDraw) {
+          behavior.draw(ctx, boss, bossTime, playerForDraw)
         }
       }
 
