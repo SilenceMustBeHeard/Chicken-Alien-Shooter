@@ -1,5 +1,4 @@
-
-import type { Boss, BossType } from "@/lib/game/types"
+import type { Boss, BossType, Enemy } from "@/lib/game/types"
 import type { BossContext } from "@/lib/game/context"
 import type { BossBehavior, BossStats } from "../base/boss-behavior"
 import { drawTheHive } from "./draw"
@@ -61,7 +60,7 @@ export const theHiveBehavior: BossBehavior = {
     const angle = Math.atan2(dy, dx)
 
     // PHASE 1: AMALGAM
-    
+
     if (boss.hivePhase === 1) {
       // Chaotic movement
       const driftX = Math.cos(angle) * boss.speed * 0.5
@@ -233,7 +232,8 @@ export const theHiveBehavior: BossBehavior = {
         targetBx = orbitCenterX + 40
         targetBy = orbitCenterY
 
-        const healPerFrame = (10 / 1000) * deltaTime
+        // Heal 5 HP/s 
+        const healPerFrame = (5 / 1000) * deltaTime
         lordA.health = Math.min(lordA.maxHealth, lordA.health + healPerFrame)
         lordB.health = Math.min(lordB.maxHealth, lordB.health + healPerFrame)
       }
@@ -342,6 +342,7 @@ export const theHiveBehavior: BossBehavior = {
       }
     }
     // PHASE 3: 4 HIVE SPAWNS (figure-eight)
+
     else if (boss.hivePhase === 3) {
       const spawns = boss.hiveSpawns
       if (!spawns) return
@@ -356,24 +357,18 @@ export const theHiveBehavior: BossBehavior = {
         spawn.x = spawn.figureEightCenterX + Math.sin(phase) * spawn.figureEightRadiusX
         spawn.y = spawn.figureEightCenterY + Math.sin(phase * 2) * spawn.figureEightRadiusY
 
-    
         spawn.x = Math.max(30, Math.min(canvasWidth - 30, spawn.x))
         spawn.y = Math.max(30, Math.min(canvasHeight - 30, spawn.y))
 
-      
         spawn.shootTimer += deltaTime
         if (spawn.shootTimer >= 2000) {
           spawn.shootTimer = 0
-
-          
         }
       }
 
-      // Synchronized shooting — check if all should shoot
-      // Use first spawn's timer as master
+      // Synchronized shooting
       const masterSpawn = spawns[0]
       if (masterSpawn.shootTimer >= 2000 - deltaTime && masterSpawn.shootTimer < 2000) {
-        // Fire from all 4
         for (const spawn of spawns) {
           const angleToPlayer = Math.atan2(player.y - spawn.y, player.x - spawn.x)
           projectiles.spawn(
@@ -429,31 +424,34 @@ export const theHiveBehavior: BossBehavior = {
         boss.hiveSpawns = undefined
         boss.hiveFinalWave = true
 
-        // Spawn grunts + tanks in enemies array
-      
+        // Spawn hive tanks (4)
         for (let i = 0; i < 4; i++) {
-          const angle = (i / 4) * Math.PI * 2
-          enemies.spawn({
-            x: canvasWidth / 2 + Math.cos(angle) * 150,
-            y: canvasHeight / 2 + Math.sin(angle) * 150,
+          const spawnAngle = (i / 4) * Math.PI * 2
+          const enemy = enemies.spawn({
+            x: canvasWidth / 2 + Math.cos(spawnAngle) * 150,
+            y: canvasHeight / 2 + Math.sin(spawnAngle) * 150,
             radius: 18,
-            speed: 0.7,
+            speed: 0.6,
             health: 30,
             type: "tank",
             alienType: "tank",
           })
+          enemy.isHiveEnemy = true
         }
+
+        // Spawn hive grunts (8)
         for (let i = 0; i < 8; i++) {
-          const angle = (i / 8) * Math.PI * 2
-          enemies.spawn({
-            x: canvasWidth / 2 + Math.cos(angle) * 250,
-            y: canvasHeight / 2 + Math.sin(angle) * 250,
+          const spawnAngle = (i / 8) * Math.PI * 2
+          const enemy = enemies.spawn({
+            x: canvasWidth / 2 + Math.cos(spawnAngle) * 250,
+            y: canvasHeight / 2 + Math.sin(spawnAngle) * 250,
             radius: 12,
-            speed: 1.0,
+            speed: 1.2,
             health: 10,
             type: "grunt",
             alienType: "grunt",
           })
+          enemy.isHiveEnemy = true
         }
 
         audio.play(150, 0.8, "sawtooth")
@@ -461,12 +459,11 @@ export const theHiveBehavior: BossBehavior = {
         particles.burst(canvasWidth / 2, canvasHeight / 2, "#dc2626", 30)
       }
     }
-    // 
-    // PHASE 4: GRUNTS + TANKS (final cleanup)
-      else if (boss.hivePhase === 4) {
-      // Check if all spawned enemies are dead
-      if (boss.hiveFinalWave && ctx.getEnemies().length === 0) {
-        // Victory!
+    // PHASE 4: FINAL WAVE (hive enemies cleanup)
+
+    else if (boss.hiveFinalWave) {
+      const hiveEnemiesAlive = ctx.getEnemies().filter((e) => e.isHiveEnemy)
+      if (hiveEnemiesAlive.length === 0) {
         boss.health = 0
         audio.playSfx("bossDefeat")
         screenShake.shake(50)
