@@ -3197,7 +3197,7 @@ case "charge":
       }
 
 
-
+// Omega Prime
 
 
       else if (boss.type === "omegaPrime") {
