@@ -16,6 +16,7 @@ import { plagueBringerBehavior } from "../plague-bringer"
 import { ironTyrantBehavior } from "../iron-tyrant"
 import { voidLeviathanBehavior } from "../void-leviathan"
 import { theHiveBehavior } from "../the-hive"
+import { omegaPrimeBehavior } from "../omega-prime"
 
 // Registry of all bosses in the game
 // Each boss is registered with its behavior
@@ -34,7 +35,7 @@ export const BOSS_REGISTRY: Record<BossType, BossBehavior> = {
   ironTyrant: ironTyrantBehavior,      
   voidLeviathan: voidLeviathanBehavior,   
   theHive: theHiveBehavior,        
-  omegaPrime: alienMouseBehavior,      
+  omegaPrime: omegaPrimeBehavior,      
 }
 
 export function getBossBehavior(type: BossType): BossBehavior {

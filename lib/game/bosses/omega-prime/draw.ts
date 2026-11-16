@@ -7,12 +7,11 @@ export function drawOmegaPrime(
   _bossTime: number,
   _player: Player,
 ) {
+  ctx.save()
+
   const r = boss.radius
   const bx = boss.x
   const by = boss.y
-
-  // Simple placeholder: two yellow eyes
-  // TODO: replace with full omegaPrime visual
 
   ctx.fillStyle = "#ffff00"
   ctx.beginPath()
@@ -25,4 +24,6 @@ export function drawOmegaPrime(
   ctx.arc(bx - r * 0.3, by - r * 0.2, r * 0.08, 0, Math.PI * 2)
   ctx.arc(bx + r * 0.3, by - r * 0.2, r * 0.08, 0, Math.PI * 2)
   ctx.fill()
+
+  ctx.restore()
 }

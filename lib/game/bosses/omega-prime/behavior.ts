@@ -2,7 +2,7 @@
 import type { Boss, BossType } from "@/lib/game/types"
 import type { BossContext } from "@/lib/game/context"
 import type { BossBehavior, BossStats } from "../base/boss-behavior"
-import { drawOmegaPrime } from "././draw"
+import { drawOmegaPrime } from "./draw"
 
 const TYPE: BossType = "omegaPrime"
 

@@ -1328,861 +1328,128 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       saucerSpawnTimerRef.current = 0
     }
 
-    const boss = bossRef.current
+
+        const boss = bossRef.current
     if (boss) {
-      switch (boss.type) {
-
-  
-        // Alien Mouse 
-        case "alienMouse": {
-          const behavior = getBossBehavior("alienMouse")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              const behavior = getBossBehavior(boss.type)
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-              addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-              addScreenShake(15)
-              playSound(200, 0.5, "sawtooth")
-              scoreRef.current += 500
-              setScore(scoreRef.current)
-              killCountRef.current += 1
-              setKillCount(killCountRef.current)
-              for (let p = 0; p < 3; p++) {
-                spawnWeaponPowerUp(
-                  boss.x + (Math.random() - 0.5) * 80,
-                  boss.y + (Math.random() - 0.5) * 80,
-                )
-              }
-            },
-            damagePlayer: (amount, source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
-          break
-        }
-
-// Alien Bumblebee
-
-                  case "alienBumblebee": {
-          const behavior = getBossBehavior("alienBumblebee")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-            },
-            damagePlayer: (amount, _source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
-
-          // Rewards on death
-          if (!bossRef.current) {
-            scoreRef.current += 500
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-            addScreenShake(15)
-            playSound(200, 0.5, "sawtooth")
-            for (let p = 0; p < 3; p++) {
-              spawnWeaponPowerUp(
-                boss.x + (Math.random() - 0.5) * 80,
-                boss.y + (Math.random() - 0.5) * 80,
-              )
+      // Helper to avoid repeating 20 lines per case
+      const runBossUpdate = (type: BossType) => {
+        const behavior = getBossBehavior(type)
+        const bossCtx = createBossContext({
+          boss,
+          player,
+          canvasWidth: canvas.width,
+          canvasHeight: canvas.height,
+          deltaTime,
+          bossTime: gameTimeRef.current,
+          enemiesRef,
+          projectilesRef,
+          getWave: () => waveRef.current,
+          killBoss: () => {
+            bossRef.current = null
+            lastBossWaveRef.current = waveRef.current
+          },
+          damagePlayer: (amount, _source) => {
+            if (player.invincibleTime <= 0 && !player.shield) {
+              player.health -= amount
+              player.invincibleTime = 60
+              chickenHitSound()
             }
-          }
-          break
-        }
+          },
+          healPlayer: (amount) => {
+            player.health = Math.min(player.maxHealth, player.health + amount)
+          },
+          projectiles: gameContext.projectiles,
+          enemies: gameContext.enemies,
+          particles: gameContext.particles,
+          floatingTexts: gameContext.floatingTexts,
+          screenShake: gameContext.screenShake,
+          audio: gameContext.audio,
+          ui: gameContext.ui,
+        })
+        behavior.update(boss, bossCtx)
 
+        // Rewards on death (unless boss already handled it via killBoss)
+        if (!bossRef.current) {
+          const rewardScore =
+            type === "omegaPrime" ? 2000 :
+            type === "theHive" ? 1000 :
+            500
+          const rewardPowerUps =
+            type === "omegaPrime" || type === "theHive" ? 5 : 3
 
-                case "alienOctopus": {
-          const behavior = getBossBehavior("alienOctopus")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-            },
-            damagePlayer: (amount, _source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
+          scoreRef.current += rewardScore
+          setScore(scoreRef.current)
+          killCountRef.current += 1
+          setKillCount(killCountRef.current)
 
-          if (!bossRef.current) {
-            scoreRef.current += 500
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-            addScreenShake(15)
-            playSound(200, 0.5, "sawtooth")
-            for (let p = 0; p < 3; p++) {
-              spawnWeaponPowerUp(
-                boss.x + (Math.random() - 0.5) * 80,
-                boss.y + (Math.random() - 0.5) * 80,
-              )
-            }
-          }
-          break
-        }
+          const fx = type === "omegaPrime" ? canvas.width / 2 : boss.x
+          const fy = type === "omegaPrime" ? canvas.height / 2 : boss.y
 
+          addFloatingText(fx, fy - 40, `+${rewardScore}`, "#ffff00", 32)
+          addScreenShake(type === "omegaPrime" ? 25 : type === "theHive" ? 20 : 15)
+          playSound(200, 0.5, "sawtooth")
 
-               case "alienMantis": {
-          const behavior = getBossBehavior("alienMantis")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-            },
-            damagePlayer: (amount, _source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
-
-          if (!bossRef.current) {
-            scoreRef.current += 500
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-            addScreenShake(15)
-            playSound(200, 0.5, "sawtooth")
-            for (let p = 0; p < 3; p++) {
-              spawnWeaponPowerUp(
-                boss.x + (Math.random() - 0.5) * 80,
-                boss.y + (Math.random() - 0.5) * 80,
-              )
-            }
-          }
-          break
-        }
-
-        case "abductor":
-         const behavior = getBossBehavior("abductor")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-            },
-            damagePlayer: (amount, _source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
-
-          if (!bossRef.current) {
-            scoreRef.current += 500
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-            addScreenShake(15)
-            playSound(200, 0.5, "sawtooth")
-            for (let p = 0; p < 3; p++) {
-              spawnWeaponPowerUp(
-                boss.x + (Math.random() - 0.5) * 80,
-                boss.y + (Math.random() - 0.5) * 80,
-              )
-            }
-          }
-          break
-        
-
-         
-case "queenXenoHen": {
-  const queenBehavior = getBossBehavior("queenXenoHen")
-
-  const queenContext = createBossContext({
-    boss,
-    player,
-    canvasWidth: canvas.width,
-    canvasHeight: canvas.height,
-    deltaTime,
-    bossTime: gameTimeRef.current,
-    enemiesRef,
-    projectilesRef,
-    getWave: () => waveRef.current,
-    killBoss: () => {
-      bossRef.current = null
-      lastBossWaveRef.current = waveRef.current
-    },
-    damagePlayer: (amount, _source) => {
-      if (player.invincibleTime <= 0 && !player.shield) {
-        player.health -= amount
-        player.invincibleTime = 60
-        chickenHitSound()
-      }
-    },
-    healPlayer: (amount) => {
-      player.health = Math.min(player.maxHealth, player.health + amount)
-    },
-    projectiles: gameContext.projectiles,
-    enemies: gameContext.enemies,
-    particles: gameContext.particles,
-    floatingTexts: gameContext.floatingTexts,
-    screenShake: gameContext.screenShake,
-    audio: gameContext.audio,
-    ui: gameContext.ui,
-  })
-
-  queenBehavior.update(boss, queenContext)
-
-  if (!bossRef.current) {
-    scoreRef.current += 500
-    setScore(scoreRef.current)
-    killCountRef.current += 1
-    setKillCount(killCountRef.current)
-    addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-    addScreenShake(15)
-    playSound(200, 0.5, "sawtooth")
-
-    for (let p = 0; p < 3; p++) {
-      spawnWeaponPowerUp(
-        boss.x + (Math.random() - 0.5) * 80,
-        boss.y + (Math.random() - 0.5) * 80,
-      )
-    }
-  }
-
-  break
-}
-
-
-
-              case "devourer": {
-  const behavior = getBossBehavior("devourer")
-
-  const devourerContext = createBossContext({
-    boss,
-    player,
-    canvasWidth: canvas.width,
-    canvasHeight: canvas.height,
-    deltaTime,
-    bossTime: gameTimeRef.current,
-    enemiesRef,
-    projectilesRef,
-    getWave: () => waveRef.current,
-    killBoss: () => {
-      bossRef.current = null
-      lastBossWaveRef.current = waveRef.current
-    },
-    damagePlayer: (amount, _source) => {
-      if (player.invincibleTime <= 0 && !player.shield) {
-        player.health -= amount
-        player.invincibleTime = 60
-        chickenHitSound()
-      }
-    },
-    healPlayer: (amount) => {
-      player.health = Math.min(player.maxHealth, player.health + amount)
-    },
-    projectiles: gameContext.projectiles,
-    enemies: gameContext.enemies,
-    particles: gameContext.particles,
-    floatingTexts: gameContext.floatingTexts,
-    screenShake: gameContext.screenShake,
-    audio: gameContext.audio,
-    ui: gameContext.ui,
-  })
-
-  behavior.update(boss, devourerContext)
-  break
-}
-
-        //  LATE GAME BOSSES 
-
-                     case "theButcher":
-          {
-            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
-            boss.spawnTimer += deltaTime
-
-            const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
-            const distToPlayer = Math.sqrt(
-              (player.x - boss.x) ** 2 + (player.y - boss.y) ** 2
+          for (let p = 0; p < rewardPowerUps; p++) {
+            spawnWeaponPowerUp(
+              fx + (Math.random() - 0.5) * (type === "omegaPrime" ? 120 : 80),
+              fy + (Math.random() - 0.5) * (type === "omegaPrime" ? 120 : 80),
             )
-
-            // Health + Berserk state
-            const healthPercent = boss.health / boss.maxHealth
-            const isBerserk = healthPercent < 0.20  // <20% HP = berserk
-
-            // Enrage multiplier (berserk makes him even faster)
-            let enrageMultiplier = 1
-            if (isBerserk) {
-              enrageMultiplier = 2  // 2x speed when berserk
-            } else if (healthPercent < 0.33) {
-              enrageMultiplier = 1.5
-            } else if (healthPercent < 0.66) {
-              enrageMultiplier = 1.25
-            }
-
-            //  BERSERK: DEVOUR MOBS TO HEAL 
-            if (isBerserk) {
-              // Look for nearby enemies to eat
-              const devourRadius = boss.radius * 4 // huge devour radius
-              enemiesRef.current = enemiesRef.current.filter((enemy) => {
-                const dx = enemy.x - boss.x
-                const dy = enemy.y - boss.y
-                const dist = Math.sqrt(dx * dx + dy * dy)
-
-                if (dist < devourRadius) {
-                  // DEVOUR! Heal boss and destroy enemy
-                  const healAmount = 30  // +30 HP per mob eaten
-                  boss.health = Math.min(boss.maxHealth, boss.health + healAmount)
-
-                  // Visual feedback
-                  createParticles(enemy.x, enemy.y, "#ff0000")
-                  addFloatingText(enemy.x, enemy.y - 30, `+${healAmount} HP`, "#00ff00", 18)
-
-                  // Sound
-                  enemyDeadSound()
-
-                  return false  // remove enemy
-                }
-                return true
-              })
-            }
-
-            //  CYCLE TIMING 
-            // Normal: 2.5s chase → 0.6s windup → 0.5s charge → 1.5s stunned = 5.1s
-            // Berserk: 1s chase → 0.3s windup → 0.4s charge → 0.3s stunned = 2s (much faster)
-            const cycleTime = isBerserk ? 2000 : 5100
-            const chaseEnd = isBerserk ? 1000 : 2500
-            const windupEnd = isBerserk ? 1300 : 3100
-            const chargeEnd = isBerserk ? 1700 : 3600
-
-            const cyclePhase = boss.spawnTimer % cycleTime
-
-            if (cyclePhase < chaseEnd) {
-              //  PHASE 1: CHASE 
-              const chaseSpeed = isBerserk ? 0.8 : 0.4
-              boss.x += Math.cos(angle) * boss.speed * chaseSpeed * enrageMultiplier
-              boss.y += Math.sin(angle) * boss.speed * chaseSpeed * enrageMultiplier
-            } else if (cyclePhase < windupEnd) {
-
-              //  PHASE 2: WINDUP 
-              boss.x += (Math.random() - 0.5) * (isBerserk ? 8 : 4)
-              boss.y += (Math.random() - 0.5) * (isBerserk ? 8 : 4)
-              const windupStart = cyclePhase - (isBerserk ? 1000 : 2500)
-              if (windupStart < 50) {
-                boss.chargeDirection = { x: Math.cos(angle), y: Math.sin(angle) }
-              }
-            } else if (cyclePhase < chargeEnd) {
-              //  PHASE 3: CHARGE 
-              if (boss.chargeDirection) {
-                const chargeSpeed = isBerserk ? 20 : 15
-                boss.x += boss.chargeDirection.x * boss.speed * chargeSpeed * enrageMultiplier
-                boss.y += boss.chargeDirection.y * boss.speed * chargeSpeed * enrageMultiplier
-
-                // Clamp to canvas
-                boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
-                boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
-              }
-            } else {
-              //  PHASE 4: STUNNED 
-              // Berserk stun is very short (0.3s), normal is 1.5s
-              const stunReset = isBerserk ? 1950 : 5050
-              if (cyclePhase > stunReset) {
-                boss.chargeDirection = undefined
-              }
-            }
-
-            //  CONTACT DAMAGE 
-            if (distToPlayer < player.radius + boss.radius * 0.85) {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                const isCharging = cyclePhase >= windupEnd && cyclePhase < chargeEnd
-                let damage = isCharging ? 45 : 15
-                if (isBerserk) damage = isCharging ? 60 : 20  // more damage in berserk
-
-                player.health -= damage
-                player.invincibleTime = 60
-                chickenHitSound()
-                addScreenShake(isCharging ? 25 : 10)
-                addFloatingText(player.x, player.y - 30, `-${damage}`, "#ff0000", isCharging ? 28 : 22)
-
-                const pushAngle = Math.atan2(player.y - boss.y, player.x - boss.x)
-                player.x += Math.cos(pushAngle) * (isCharging ? 60 : 35)
-                player.y += Math.sin(pushAngle) * (isCharging ? 60 : 35)
-
-                if (player.health <= 0) {
-                  chickenDeathSound()
-                  gameStateRef.current = "gameOver"
-                  setGameState("gameOver")
-                  setFinalScore(scoreRef.current)
-                  setFinalKillCount(killCountRef.current)
-                  setFinalWave(waveRef.current)
-                }
-              }
-            }
           }
-          break
-
-      // VOID REAPER 
-             case "voidReaper": {
-          const behavior = getBossBehavior("voidReaper")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-            },
-            damagePlayer: (amount, _source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
-
-          if (!bossRef.current) {
-            scoreRef.current += 500
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-            addScreenShake(15)
-            playSound(200, 0.5, "sawtooth")
-            for (let p = 0; p < 3; p++) {
-              spawnWeaponPowerUp(
-                boss.x + (Math.random() - 0.5) * 80,
-                boss.y + (Math.random() - 0.5) * 80,
-              )
-            }
-          }
-          break
         }
 
-          // PLAGUE BRINGER 
-
-               case "plagueBringer": {
-          const behavior = getBossBehavior("plagueBringer")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-            },
-            damagePlayer: (amount, _source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
-
-          // Game Over check (DoT can kill without invincibility) 
-          if (gameStateRef.current === "gameOver") {
-            setFinalScore(scoreRef.current)
-            setFinalKillCount(killCountRef.current)
-            setFinalWave(waveRef.current)
-            break
-          }
-
-          if (!bossRef.current) {
-            scoreRef.current += 500
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-            addScreenShake(15)
-            playSound(200, 0.5, "sawtooth")
-            for (let p = 0; p < 3; p++) {
-              spawnWeaponPowerUp(
-                boss.x + (Math.random() - 0.5) * 80,
-                boss.y + (Math.random() - 0.5) * 80,
-              )
-            }
-          }
-          break
+        // Extra: game over check for bosses that can kill player
+        if (gameStateRef.current === "gameOver") {
+          setFinalScore(scoreRef.current)
+          setFinalKillCount(killCountRef.current)
+          setFinalWave(waveRef.current)
         }
+      }
 
-       // IRON TYRANT
-               case "ironTyrant": {
-          const behavior = getBossBehavior("ironTyrant")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-            },
-            damagePlayer: (amount, _source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
-
-          // ─── Game Over check ───
-          if (gameStateRef.current === "gameOver") {
-            setFinalScore(scoreRef.current)
-            setFinalKillCount(killCountRef.current)
-            setFinalWave(waveRef.current)
-            break
-          }
-
-          if (!bossRef.current) {
-            scoreRef.current += 500
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-            addScreenShake(15)
-            playSound(200, 0.5, "sawtooth")
-            for (let p = 0; p < 3; p++) {
-              spawnWeaponPowerUp(
-                boss.x + (Math.random() - 0.5) * 80,
-                boss.y + (Math.random() - 0.5) * 80,
-              )
-            }
-          }
+      switch (boss.type) {
+        case "alienMouse":
+          runBossUpdate("alienMouse")
           break
-        }
-
-          
-          
-          // VOID LEVIATHAN
-              case "voidLeviathan": {
-          const behavior = getBossBehavior("voidLeviathan")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-            },
-            damagePlayer: (amount, _source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
-
-          if (gameStateRef.current === "gameOver") {
-            setFinalScore(scoreRef.current)
-            setFinalKillCount(killCountRef.current)
-            setFinalWave(waveRef.current)
-            break
-          }
-
-          if (!bossRef.current) {
-            scoreRef.current += 500
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-            addScreenShake(15)
-            playSound(200, 0.5, "sawtooth")
-            for (let p = 0; p < 3; p++) {
-              spawnWeaponPowerUp(
-                boss.x + (Math.random() - 0.5) * 80,
-                boss.y + (Math.random() - 0.5) * 80,
-              )
-            }
-          }
+        case "alienBumblebee":
+          runBossUpdate("alienBumblebee")
           break
-        }
-
-
-                  case "theHive": {
-          const behavior = getBossBehavior("theHive")
-          const bossCtx = createBossContext({
-            boss,
-            player,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            deltaTime,
-            bossTime: gameTimeRef.current,
-            enemiesRef,
-            projectilesRef,
-            getWave: () => waveRef.current,
-            killBoss: () => {
-              bossRef.current = null
-              lastBossWaveRef.current = waveRef.current
-            },
-            damagePlayer: (amount, _source) => {
-              if (player.invincibleTime <= 0 && !player.shield) {
-                player.health -= amount
-                player.invincibleTime = 60
-                chickenHitSound()
-              }
-            },
-            healPlayer: (amount) => {
-              player.health = Math.min(player.maxHealth, player.health + amount)
-            },
-            projectiles: gameContext.projectiles,
-            enemies: gameContext.enemies,
-            particles: gameContext.particles,
-            floatingTexts: gameContext.floatingTexts,
-            screenShake: gameContext.screenShake,
-            audio: gameContext.audio,
-            ui: gameContext.ui,
-          })
-          behavior.update(boss, bossCtx)
-
-          if (gameStateRef.current === "gameOver") {
-            setFinalScore(scoreRef.current)
-            setFinalKillCount(killCountRef.current)
-            setFinalWave(waveRef.current)
-            break
-          }
-
-          if (!bossRef.current) {
-            scoreRef.current += 1000  // bigger reward for final boss
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            addFloatingText(boss.x, boss.y - 40, "+1000", "#ffff00", 32)
-            addScreenShake(20)
-            playSound(150, 0.8, "sawtooth")
-            for (let p = 0; p < 5; p++) {
-              spawnWeaponPowerUp(
-                boss.x + (Math.random() - 0.5) * 100,
-                boss.y + (Math.random() - 0.5) * 100,
-              )
-            }
-          }
+        case "alienOctopus":
+          runBossUpdate("alienOctopus")
           break
-        }
-
+        case "alienMantis":
+          runBossUpdate("alienMantis")
+          break
+        case "abductor":
+          runBossUpdate("abductor")
+          break
+        case "queenXenoHen":
+          runBossUpdate("queenXenoHen")
+          break
+        case "devourer":
+          runBossUpdate("devourer")
+          break
+        case "theButcher":
+          runBossUpdate("theButcher")
+          break
+        case "voidReaper":
+          runBossUpdate("voidReaper")
+          break
+        case "plagueBringer":
+          runBossUpdate("plagueBringer")
+          break
+        case "ironTyrant":
+          runBossUpdate("ironTyrant")
+          break
+        case "voidLeviathan":
+          runBossUpdate("voidLeviathan")
+          break
+        case "theHive":
+          runBossUpdate("theHive")
+          break
         case "omegaPrime":
-          {
-            if (boss.spawnTimer === undefined) boss.spawnTimer = 0
-            boss.spawnTimer += deltaTime
-
-            const phase = Math.floor(boss.spawnTimer / 3000) % 3
-            const angle = Math.atan2(player.y - boss.y, player.x - boss.x)
-
-            if (phase === 0) {
-              const orbitAngle = boss.spawnTimer / 500
-              boss.x = player.x + Math.cos(orbitAngle) * 280
-              boss.y = player.y + Math.sin(orbitAngle) * 280
-            } else if (phase === 1) {
-              boss.x += Math.cos(angle) * boss.speed * 2.5
-              boss.y += Math.sin(angle) * boss.speed * 2.5
-            } else {
-              boss.x += Math.cos(boss.spawnTimer / 100) * boss.speed
-              boss.y += Math.sin(boss.spawnTimer / 80) * boss.speed
-              boss.x += (player.x - boss.x) * 0.008
-              boss.y += (player.y - boss.y) * 0.008
-            }
-
-            if (phase === 1 && Math.random() < 0.02) {
-              const a = Math.random() * Math.PI * 2
-              enemiesRef.current.push({
-                x: boss.x + Math.cos(a) * boss.radius,
-                y: boss.y + Math.sin(a) * boss.radius,
-                radius: 10,
-                speed: 1.2,
-                health: 3,
-                maxHealth: 3,
-                groupId: Date.now(),
-                type: "grunt",
-                alienType: "grunt",
-                color: getAlienColor("grunt"),
-              })
-            }
-          }
+          runBossUpdate("omegaPrime")
           break
       }
+    
 
       // Keep boss in bounds
       boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
@@ -2843,20 +2110,22 @@ case "charge":
   }
 
   // Draw game
-  const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-    ctx.save()
-    ctx.translate(screenShakeXRef.current, screenShakeYRef.current)
+const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+  ctx.save()
+  ctx.translate(screenShakeXRef.current, screenShakeYRef.current)
 
-    // Clear canvas with gradient background
-    const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
-    bgGradient.addColorStop(0, "#0a0a1a")
-    bgGradient.addColorStop(1, "#1a0a2a")
-    ctx.fillStyle = bgGradient
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+  // Clear canvas with gradient background
+  const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
+  bgGradient.addColorStop(0, "#0a0a1a")
+  bgGradient.addColorStop(1, "#1a0a2a")
+  ctx.fillStyle = bgGradient
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    const player = playerRef.current
-    if (!player) return
-
+  const player = playerRef.current
+  if (!player) {
+    ctx.restore() 
+    return
+  }
     particlesRef.current.forEach((particle) => {
       const alpha = particle.life / 30
       ctx.globalAlpha = alpha
@@ -3050,176 +2319,22 @@ case "charge":
       // Type-specific visuals
 
 
-
-
-      // Start of boss drawing 
-
-      // boss Alien Mouse
-               if (boss.type === "alienMouse") {
-        const behavior = getBossBehavior("alienMouse")
-        behavior.draw(ctx, boss, bossTime, playerRef.current!)
-      
       
 
-        // boss Alien Bumblebee
-
-         } else if (boss.type === "alienBumblebee") {
-        const behavior = getBossBehavior("alienBumblebee")
+      // Start of boss drawing
+      {
+        const behavior = getBossBehavior(boss.type)
         const playerForDraw = playerRef.current
         if (playerForDraw) {
+          ctx.save()
           behavior.draw(ctx, boss, bossTime, playerForDraw)
-        }
-      
-      
-      
-      
-
-// boss Alien Octopus
-      
-
-      } else if (boss.type === "alienOctopus") {
-        const behavior = getBossBehavior("alienOctopus")
-        const playerForDraw = playerRef.current
-        if (playerForDraw) {
-          behavior.draw(ctx, boss, bossTime, playerForDraw)
-        }
-      
-
-  
-
-
-
-    // boss Alien Mantis
-         } else if (boss.type === "alienMantis") {
-        const behavior = getBossBehavior("alienMantis")
-        const playerForDraw = playerRef.current
-        if (playerForDraw) {
-          behavior.draw(ctx, boss, bossTime, playerForDraw)
-        }
-      
-      
-
-
-
-        // boss Alien Abductor
-         // boss Alien Abductor
-           } else if (boss.type === "abductor") {
-        const behavior = getBossBehavior("abductor")
-        const playerForDraw = playerRef.current
-        if (playerForDraw) {
-          behavior.draw(ctx, boss, bossTime, playerForDraw)
-        }
-      
-        // boss Queen Xeno Hen
-    
-} else if (boss.type === "queenXenoHen") {
-  const queenBehavior = getBossBehavior("queenXenoHen")
-  const playerForDraw = playerRef.current
-
-  if (playerForDraw) {
-    queenBehavior.draw(ctx, boss, bossTime, playerForDraw)
-  }
-
-      
-
-        // boss Devourer
-
-      } else if (boss.type === "devourer") {
-  const behavior = getBossBehavior("devourer")
-  const playerForDraw = playerRef.current
-
-  if (playerForDraw) {
-    behavior.draw(ctx, boss, bossTime, playerForDraw)
-  }
-
-     
-      // boss The Butcher
-        
-          } else if (boss.type === "theButcher") {
-  const behavior = getBossBehavior("theButcher")
-  const playerForDraw = playerRef.current
-
-  if (playerForDraw) {
-    behavior.draw(ctx, boss, bossTime, playerForDraw)
-  }
-
-      
-      
-// boss Void Reaper
-           } else if (boss.type === "voidReaper") {
-        const behavior = getBossBehavior("voidReaper")
-        const playerForDraw = playerRef.current
-        if (playerForDraw) {
-          behavior.draw(ctx, boss, bossTime, playerForDraw)
-        }
-      
-
-
-      // boss Plague Bringer
-          } else if (boss.type === "plagueBringer") {
-        const behavior = getBossBehavior("plagueBringer")
-        const playerForDraw = playerRef.current
-        if (playerForDraw) {
-          behavior.draw(ctx, boss, bossTime, playerForDraw)
-        }
-      
-      
-
-
-  // boss Iron Tyrant
-         } else if (boss.type === "ironTyrant") {
-        const behavior = getBossBehavior("ironTyrant")
-        const playerForDraw = playerRef.current
-        if (playerForDraw) {
-          behavior.draw(ctx, boss, bossTime, playerForDraw)
-        }
-      
-      
-// Void Leviathan 
-
-          } else if (boss.type === "voidLeviathan") {
-        const behavior = getBossBehavior("voidLeviathan")
-        const playerForDraw = playerRef.current
-        if (playerForDraw) {
-          behavior.draw(ctx, boss, bossTime, playerForDraw)
-        }
-      
-      
-
-// The Hive 
-
-          } else if (boss.type === "theHive") {
-        const behavior = getBossBehavior("theHive")
-        const playerForDraw = playerRef.current
-        if (playerForDraw) {
-          behavior.draw(ctx, boss, bossTime, playerForDraw)
+          ctx.restore()
         }
       }
-
-
-// Omega Prime
-
-
-      else if (boss.type === "omegaPrime") {
-       
-        ctx.fillStyle = "#ffff00"
-        ctx.beginPath()
-        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
-        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.15, 0, Math.PI * 2)
-        ctx.fill()
-
-        ctx.fillStyle = "#000000"
-        ctx.beginPath()
-        ctx.arc(boss.x - boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
-        ctx.arc(boss.x + boss.radius * 0.3, boss.y - boss.radius * 0.2, boss.radius * 0.08, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
-      ctx.restore()
-
-
-
       // End of boss drawing
+
+
+
 
             // Armor bar (only if boss has armor)
       if (boss.maxArmor !== undefined && boss.armor !== undefined) {
