@@ -13,5 +13,4 @@ export * from "./plague-bringer"
 export * from "./iron-tyrant"
 export * from "./void-leviathan"
 export * from "./the-hive"
-
-
+export * from "./omega-prime"

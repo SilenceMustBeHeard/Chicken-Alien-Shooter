@@ -128,6 +128,6 @@ hiveSpawns?: {
   figureEightRadiusY: number
 }[]
 
-// theHive — Phase 4 (grunts + tanks, but we track total HP)
+// theHive — Phase 4 (grunts + tanks)
 hiveFinalWave?: boolean
 }
