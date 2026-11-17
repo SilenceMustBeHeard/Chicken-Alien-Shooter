@@ -1,4 +1,3 @@
-// lib/game/types/powerup.ts
 
 import type { GameObject } from "./player"
 

@@ -1,24 +1,31 @@
 
 import type { GameObject } from "./player"
 
-export type EnemyType = "grunt" | "tank" | "leech" | "splitter" | "blinker"
+export type EnemyType =
+  | "grunt"
+  | "tank"
+  | "leech"
+  | "splitter"
+  | "blinker"
+  | "hiveGrunt"  
+  | "hiveTank"
 
 export type Enemy = GameObject & {
-  speed: number
   health: number
   maxHealth: number
-  groupId: number
+  speed: number
   type: EnemyType
-  blinkerTimer?: number
-  healTimer?: number
+  alienType: EnemyType
+  color: string
+  groupId: number
+  hitFlash?: number
   stunned?: boolean
   stunnedTime?: number
-  teleportCooldown?: number
-  alienType?: string
-  color?: string
-  hitFlash?: number
   contactCooldown?: number
-   isHiveEnemy?: boolean
+  blinkerTimer?: number
+  healTimer?: number
+  teleportCooldown?: number
+  isHiveEnemy?: boolean
 }
 
 export type FlyingSaucer = GameObject & {
