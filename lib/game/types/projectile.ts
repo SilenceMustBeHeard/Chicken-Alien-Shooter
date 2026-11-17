@@ -1,24 +1,27 @@
 
-import type { GameObject } from "./player"
-
-export type Projectile = GameObject & {
+export type Projectile = {
+  x: number
+  y: number
   vx: number
   vy: number
+  radius: number
   damage: number
+  color: string
   piercing?: boolean
   explosive?: boolean
   explosionRadius?: number
-  color?: string
-  dead?: boolean
   isEnemyProjectile?: boolean
-  isVoidSlash?: boolean
-  isVoidOrb?: boolean
+  dead?: boolean
 
-  // Void Leviathan wave
+  // Leviathan wave
   isLeviathanWave?: boolean
   waveAngle?: number
   waveScaleX?: number
   waveScaleY?: number
   waveAge?: number
   waveMaxAge?: number
+
+  // Void Reaper
+  isVoidSlash?: boolean
+  isVoidOrb?: boolean
 }

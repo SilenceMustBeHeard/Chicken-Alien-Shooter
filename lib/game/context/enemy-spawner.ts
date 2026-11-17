@@ -8,7 +8,7 @@ export type EnemySpawnConfig = {
   speed?: number
   health?: number
   radius?: number
-  alienType?: string
+  alienType?: EnemyType
   color?: string
 }
 

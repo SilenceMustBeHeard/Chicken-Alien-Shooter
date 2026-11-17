@@ -1,6 +1,6 @@
-// lib/game/types/boss.ts
 
 import type { GameObject } from "./player"
+import type { Enemy } from "./enemy"
 
 export type BossType =
   | "alienMouse"
@@ -26,35 +26,30 @@ export type Boss = GameObject & {
   spawnTimer?: number
   phase?: number
 
-
-
-
-
   // alienOctopus
-octopusGrabTimer?: number
-octopusGrabTargetX?: number
-octopusGrabTargetY?: number
-octopusGrabState?: "idle" | "windup" | "strike" | "retract"
+  octopusGrabTimer?: number
+  octopusGrabTargetX?: number
+  octopusGrabTargetY?: number
+  octopusGrabState?: "idle" | "windup" | "strike" | "retract"
 
-// alienMantis
-mantisState?: "stalk" | "windup" | "lunge" | "recovery"
-mantisAttackTimer?: number
-mantisStateTimer?: number
-mantisAttackAngle?: number
-mantisAttackProgress?: number
-mantisTargetX?: number
-mantisTargetY?: number
-mantisHasHit?: boolean
-mantisStalkTimer?: number
+  // alienMantis
+  mantisState?: "stalk" | "windup" | "lunge" | "recovery"
+  mantisAttackTimer?: number
+  mantisStateTimer?: number
+  mantisAttackAngle?: number
+  mantisAttackProgress?: number
+  mantisTargetX?: number
+  mantisTargetY?: number
+  mantisHasHit?: boolean
+  mantisStalkTimer?: number
 
-// abductor
-abductorTargetY?: number
-
-
+  // abductor
+  abductorTargetY?: number
 
   // queenXenoHen
   shootTimer?: number
   buffRadius?: number
+  queenEnraged?: boolean
 
   // devourer / theButcher / alienMouse / voidLeviathan
   chargeDirection?: { x: number; y: number }
@@ -83,9 +78,6 @@ abductorTargetY?: number
   dashDirY?: number
   dashIsFeint?: boolean
   burstDashCount?: number
-  
-  // queenXenoHen
-queenEnraged?: boolean
 
   // voidLeviathan
   leviathanPhase?: "forceField" | "zigzag" | "uroboros"
@@ -105,29 +97,35 @@ queenEnraged?: boolean
   hivePhase?: 1 | 2 | 3 | 4
   hiveAttackTimer?: number
   hiveAttackChoice?: number
-  hiveLordA?: { x: number; y: number; 
-    health: number; maxHealth: number; 
-    shootTimer: number }
-  hiveLordB?: { x: number; y: number;
-     health: number; maxHealth: number;
-      stunTimer: number; healTimer: number;
-       isHealing: boolean }
+  hiveLordA?: {
+    x: number
+    y: number
+    health: number
+    maxHealth: number
+    shootTimer: number
+  }
+  hiveLordB?: {
+    x: number
+    y: number
+    health: number
+    maxHealth: number
+    stunTimer: number
+    healTimer: number
+    isHealing: boolean
+  }
   hivePhase2Timer?: number
-
-  // theHive — Phase 3
-hiveSpawns?: {
-  x: number
-  y: number
-  health: number
-  maxHealth: number
-  shootTimer: number
-  figureEightPhase: number
-  figureEightCenterX: number
-  figureEightCenterY: number
-  figureEightRadiusX: number
-  figureEightRadiusY: number
-}[]
-
-// theHive — Phase 4 (grunts + tanks)
-hiveFinalWave?: boolean
+  hiveSpawns?: {
+    x: number
+    y: number
+    health: number
+    maxHealth: number
+    shootTimer: number
+    figureEightPhase: number
+    figureEightCenterX: number
+    figureEightCenterY: number
+    figureEightRadiusX: number
+    figureEightRadiusY: number
+  }[]
+  hiveFinalWave?: boolean
+  hiveFinalEnemies?: Enemy[]
 }
