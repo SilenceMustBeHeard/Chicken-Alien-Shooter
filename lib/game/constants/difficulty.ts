@@ -1,4 +1,3 @@
-// lib/game/constants/difficulty.ts
 
 export const DIFFICULTY_SCALING = {
   SPEED_INCREASE_PER_30S: 0.1,
@@ -12,5 +11,5 @@ export const DIFFICULTY_SCALING = {
   TANK_SPAWN_CHANCE: 0.15,
   POWER_UP_EARLY_INTERVAL: 6000,
   POWER_UP_LATE_INTERVAL: 12000,
-  POWER_UP_TRANSITION_TIME: 180, // 3 minutes
+  POWER_UP_TRANSITION_TIME: 180, 
 } as const

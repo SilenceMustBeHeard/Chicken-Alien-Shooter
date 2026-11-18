@@ -13,6 +13,7 @@ import { createScreenShake } from "@/lib/game/context/impl/create-screen-shake"
 import { createAudioSystem } from "@/lib/game/context/impl/create-audio-system"
 import { createUIController } from "@/lib/game/context/impl/create-ui-controller"
 import { createBossContext } from "@/lib/game/context/impl/create-boss-context"
+//import { createAudioSystem } from "@/lib/game/audio"
 
 import { getBossBehavior } from "@/lib/game/bosses"
 
@@ -119,10 +120,12 @@ export function ChickenAlienGame() {
     const particles = createParticleSpawner(particlesRef)
     const floatingTexts = createFloatingTextSpawner(floatingTextsRef)
     const screenShake = createScreenShake(screenShakeRef)
+    
     const audio = createAudioSystem({
       audioContextRef,
       isEnabledRef: soundEnabledRef,
     })
+    
     const ui = createUIController({
       setGameState,
       setScore,
