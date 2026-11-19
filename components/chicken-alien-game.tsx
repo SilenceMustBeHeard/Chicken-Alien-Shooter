@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Volume2, VolumeX } from "lucide-react"
@@ -10,11 +9,9 @@ import { createEnemySpawner } from "@/lib/game/context/impl/create-enemy-spawner
 import { createParticleSpawner } from "@/lib/game/context/impl/create-particle-spawner"
 import { createFloatingTextSpawner } from "@/lib/game/context/impl/create-floating-text-spawner"
 import { createScreenShake } from "@/lib/game/context/impl/create-screen-shake"
-import { createAudioSystem } from "@/lib/game/context/impl/create-audio-system"
 import { createUIController } from "@/lib/game/context/impl/create-ui-controller"
 import { createBossContext } from "@/lib/game/context/impl/create-boss-context"
-//import { createAudioSystem } from "@/lib/game/audio"
-
+import { createAudioSystem, type OscillatorWaveType } from "@/lib/game/audio"
 import { getBossBehavior } from "@/lib/game/bosses"
 
 import type {
@@ -108,6 +105,16 @@ export function ChickenAlienGame() {
   const getAlienColor = (type: EnemyType): string => {
     return ALIEN_COLORS[type] ?? "#00ff00"
   }
+
+
+      const audioSystem = useMemo(
+  () =>
+    createAudioSystem({
+      audioContextRef,
+      isEnabledRef: soundEnabledRef,
+    }),
+  [audioContextRef, soundEnabledRef],
+)
   // Game context (abstractions) 
    const gameContext = useMemo(() => {
     const projectiles = createProjectileSpawner(projectilesRef)
@@ -120,11 +127,10 @@ export function ChickenAlienGame() {
     const particles = createParticleSpawner(particlesRef)
     const floatingTexts = createFloatingTextSpawner(floatingTextsRef)
     const screenShake = createScreenShake(screenShakeRef)
+
+
     
-    const audio = createAudioSystem({
-      audioContextRef,
-      isEnabledRef: soundEnabledRef,
-    })
+   
     
     const ui = createUIController({
       setGameState,
@@ -142,7 +148,7 @@ export function ChickenAlienGame() {
       particles,
       floatingTexts,
       screenShake,
-      audio,
+      audio : audioSystem,
       ui,
     }
   }, [
@@ -245,203 +251,22 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
 
 
   // Initialize audio context
-  const initAudio = () => {
-    if (!audioContextRef.current) {
-     audioContextRef.current = new (window.AudioContext 
-      || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
-    }
-  }
-
-  // Sound effects using Web Audio API
-  const playSound = (
-    frequency: number,
-    duration: number,
-    type: OscillatorType = "sine",
-    gainValue = 0.3, // Default gain
-    startFrequency: number = frequency, // Default start frequency
-    endFrequency: number = frequency, // Default end frequency
-  ) => {
-    if (!soundEnabled || !audioContextRef.current) return
-
-    try {
-      const ctx = audioContextRef.current
-      const oscillator = ctx.createOscillator()
-      const gainNode = ctx.createGain()
-
-      oscillator.connect(gainNode)
-      gainNode.connect(ctx.destination)
-
-      oscillator.type = type
-      oscillator.frequency.setValueAtTime(startFrequency, ctx.currentTime)
-      oscillator.frequency.exponentialRampToValueAtTime(endFrequency, ctx.currentTime + duration)
-
-      gainNode.gain.setValueAtTime(gainValue, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration)
-
-      oscillator.start(ctx.currentTime)
-      oscillator.stop(ctx.currentTime + duration)
-    } catch (e) {
-      console.log("[v0] Audio error:", e)
-    }
-  }
-
-  const shootSound = () => {
-    // Quick pew sound
-    playSound(500, 0.08, "square")
-  }
-
-  const eggSplashSound = () => {
-    // Wet splash sound with frequency sweep
-    if (!soundEnabled || !audioContextRef.current) return
-    try {
-      const ctx = audioContextRef.current
-      const oscillator = ctx.createOscillator()
-      const gainNode = ctx.createGain()
-
-      oscillator.connect(gainNode)
-      gainNode.connect(ctx.destination)
-
-      oscillator.type = "sawtooth"
-      oscillator.frequency.setValueAtTime(600, ctx.currentTime)
-      oscillator.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.15)
-
-      gainNode.gain.setValueAtTime(0.2, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15)
-
-      oscillator.start(ctx.currentTime)
-      oscillator.stop(ctx.currentTime + 0.15)
-    } catch (e) {
-      console.log("[v0] Audio error:", e)
-    }
-  }
-
-  const enemyDeadSound = () => {
-    // Funny cartoonish death sound with wobble
-    if (!soundEnabled || !audioContextRef.current) return
-    try {
-      const ctx = audioContextRef.current
-      const oscillator = ctx.createOscillator()
-      const gainNode = ctx.createGain()
-
-      oscillator.connect(gainNode)
-      gainNode.connect(ctx.destination)
-
-      oscillator.type = "triangle"
-      oscillator.frequency.setValueAtTime(800, ctx.currentTime)
-      oscillator.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.4)
-
-      gainNode.gain.setValueAtTime(0.25, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4)
-
-      oscillator.start(ctx.currentTime)
-      oscillator.stop(ctx.currentTime + 0.4)
-    } catch (e) {
-      console.log("[v0] Audio error:", e)
-    }
-  }
-
-  const chickenHitSound = () => {
-    // Chicken squawk when hit
-    if (!soundEnabled || !audioContextRef.current) return
-    try {
-      const ctx = audioContextRef.current
-      const oscillator = ctx.createOscillator()
-      const gainNode = ctx.createGain()
-
-      oscillator.connect(gainNode)
-      gainNode.connect(ctx.destination)
-
-      oscillator.type = "sawtooth"
-      oscillator.frequency.setValueAtTime(400, ctx.currentTime)
-      oscillator.frequency.setValueAtTime(350, ctx.currentTime + 0.05)
-      oscillator.frequency.setValueAtTime(300, ctx.currentTime + 0.1)
-
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25)
-
-      oscillator.start(ctx.currentTime)
-      oscillator.stop(ctx.currentTime + 0.25)
-    } catch (e) {
-      console.log("[v0] Audio error:", e)
-    }
-  }
-
-  const chickenDeathSound = () => {
-    // Renamed from chickenDeadSound
-    // Dramatic chicken death squawk
-    if (!soundEnabled || !audioContextRef.current) return
-    try {
-      const ctx = audioContextRef.current
-
-      // First squawk
-      const osc1 = ctx.createOscillator()
-      const gain1 = ctx.createGain()
-      osc1.connect(gain1)
-      gain1.connect(ctx.destination)
-      osc1.type = "sawtooth"
-      osc1.frequency.setValueAtTime(500, ctx.currentTime)
-      osc1.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.3)
-      gain1.gain.setValueAtTime(0.3, ctx.currentTime)
-      gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
-      osc1.start(ctx.currentTime)
-      osc1.stop(ctx.currentTime + 0.3)
-
-      // Second lower squawk
-      const osc2 = ctx.createOscillator()
-      const gain2 = ctx.createGain()
-      osc2.connect(gain2)
-      gain2.connect(ctx.destination)
-      osc2.type = "triangle"
-      osc2.frequency.setValueAtTime(300, ctx.currentTime + 0.15)
-      osc2.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.5)
-      gain2.gain.setValueAtTime(0.25, ctx.currentTime + 0.15)
-      gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5)
-      osc2.start(ctx.currentTime + 0.15)
-      osc2.stop(ctx.currentTime + 0.5)
-    } catch (e) {
-      console.log("[v0] Audio error:", e)
-    }
-  }
-
-  const powerUpSound = () => playSound(800, 0.2, "sine")
-
-  // // Dummy function for hitSound to resolve linting error
-  // const hitSound = () => {
-  //   if (!soundEnabled || !audioContextRef.current) return
-  //   try {
-  //     const ctx = audioContextRef.current
-  //     const oscillator = ctx.createOscillator()
-  //     const gainNode = ctx.createGain()
-
-  //     oscillator.connect(gainNode)
-  //     gainNode.connect(ctx.destination)
-
-  //     oscillator.type = "sine"
-  //     oscillator.frequency.setValueAtTime(440, ctx.currentTime) // A4 note
-
-  //     gainNode.gain.setValueAtTime(0.1, ctx.currentTime)
-  //     gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1)
-
-  //     oscillator.start(ctx.currentTime)
-  //     oscillator.stop(ctx.currentTime + 0.1)
-  //   } catch (e) {
-  //     console.log("[v0] Audio error:", e)
-  //   }
-  // }
-
-  // New sound effect for charge ability
-  const chargeSound = () => {
-    playSound(200, 0.2, "sawtooth", 0.05, 100, 0.1) // Swoosh sound
-    playSound(400, 0.15, "sine", 0.05, 300, 0.08) // Wing flap
-  }
-
-  // New sound effect for stun ability
-  const stunSound = () => {
-    // Chicken crow sound
-    playSound(600, 0.3, "square", 0.1, 400, 0.15)
-    playSound(500, 0.25, "sawtooth", 0.15, 350, 0.2)
-    playSound(700, 0.2, "sine", 0.2, 600, 0.1)
-  }
+ // Audio system (replaces all the old sound functions)
+const initAudio = () => audioSystem.init()
+const playSound = (freq: number, dur: number, 
+  type?: OscillatorWaveType, gainValue?: number, 
+  startFreq?: number, endFreq?: number) => {
+  // Legacy signature — map to audioSystem.play
+  audioSystem.play(freq, dur, type)
+}
+const shootSound = () => audioSystem.shootSound()
+const eggSplashSound = () => audioSystem.eggSplashSound()
+const enemyDeadSound = () => audioSystem.enemyDeadSound()
+const chickenHitSound = () => audioSystem.chickenHitSound()
+const chickenDeathSound = () => audioSystem.chickenDeathSound()
+const powerUpSound = () => audioSystem.powerUpSound()
+const chargeSound = () => audioSystem.chargeSound()
+const stunSound = () => audioSystem.stunSound()
 
   // Initialize game
   const initGame = () => {
@@ -1808,8 +1633,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             const lordA = hiveBoss.hiveLordA
             const lordB = hiveBoss.hiveLordB
             const lordRadius = 30
-            const shieldReduction = 0.75  // Lord A взима 75% (25% shield)
-
+            const shieldReduction = 0.75  
             const dA = Math.sqrt((proj.x - lordA.x) ** 2 + (proj.y - lordA.y) ** 2)
             const dB = Math.sqrt((proj.x - lordB.x) ** 2 + (proj.y - lordB.y) ** 2)
 
@@ -2264,7 +2088,9 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     if (boss) {
       const bossTime = Date.now()
       const bossBob = Math.sin(bossTime / 260) * 4
-      const bossBreath = 1 + Math.sin(bossTime / 340) * 0.045
+      //const bossBreath = 1 + Math.sin(bossTime / 340) * 0.045
+            const bossBreath = 1 
+
      const bossPlayerRef = playerRef.current
       const angleToPlayer = bossPlayerRef
         ? Math.atan2(bossPlayerRef.y - boss.y, bossPlayerRef.x - boss.x)
