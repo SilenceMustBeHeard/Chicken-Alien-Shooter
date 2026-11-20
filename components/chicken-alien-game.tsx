@@ -13,6 +13,7 @@ import { createUIController } from "@/lib/game/context/impl/create-ui-controller
 import { createBossContext } from "@/lib/game/context/impl/create-boss-context"
 import { createAudioSystem, type OscillatorWaveType } from "@/lib/game/audio"
 import { getBossBehavior } from "@/lib/game/bosses"
+import { spawnBoss as spawnBossFromRegistry } from "@/lib/game/boss-spawning"
 
 import type {
   GameObject,
