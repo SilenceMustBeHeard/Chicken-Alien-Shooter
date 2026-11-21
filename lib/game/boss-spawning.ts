@@ -1,6 +1,7 @@
 
 import type { Boss, BossType } from "@/lib/game/types"
 import { getBossBehavior } from "@/lib/game/bosses"
+import { OscillatorWaveType } from "./audio"
 
 const BOSS_TYPES: BossType[] = [
   "alienMouse",
@@ -22,9 +23,8 @@ const BOSS_TYPES: BossType[] = [
 type SpawnBossOptions = {
   canvas: HTMLCanvasElement
   lastBossWave: number
-  playSound: (freq: number, dur: number, type?: OscillatorType) => void
+  playSound: (freq: number, dur: number, type?: OscillatorWaveType) => void
 }
-
 /**
  * Spawns a boss based on the current wave.
  * Returns the new boss object, or null if no boss should spawn.

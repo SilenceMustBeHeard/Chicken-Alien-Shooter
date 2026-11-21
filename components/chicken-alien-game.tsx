@@ -254,6 +254,7 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
   // Initialize audio context
  // Audio system (replaces all the old sound functions)
 const initAudio = () => audioSystem.init()
+
 const playSound = (freq: number, dur: number, 
   type?: OscillatorWaveType, gainValue?: number, 
   startFreq?: number, endFreq?: number) => {
@@ -496,163 +497,17 @@ const stunSound = () => audioSystem.stunSound()
       bobOffset: Math.random() * Math.PI * 2,
     })
   }
+const spawnBoss = (canvas: HTMLCanvasElement) => {
+  const boss = spawnBossFromRegistry({
+    canvas,
+    lastBossWave: lastBossWaveRef.current,
+    playSound: (freq, dur, type) => playSound(freq, dur, type ?? "sine"),
+  })
 
-   const spawnBoss = (canvas: HTMLCanvasElement) => {
-    const bossTypes: Boss["type"][] = [
-     "alienMouse",
-     "alienBumblebee",
-      "alienOctopus",
-      "alienMantis",
-      "abductor",
-      "queenXenoHen",
-      "devourer",
-      "theButcher",
-      "voidReaper",
-      "plagueBringer",
-      "ironTyrant",
-      "voidLeviathan",
-      "theHive",
-      "omegaPrime",
-    ]
-
-    // Bosses rotate through distinct alien species every five waves
-    const bossIndex = Math.floor(lastBossWaveRef.current / 5) % bossTypes.length
-    const type = bossTypes[bossIndex]
-
-    // Every full cycle through all bosses = +60% HP for extra challenge
-    const cycleNumber = Math.floor(Math.floor(lastBossWaveRef.current / 5) / bossTypes.length)
-    const healthMultiplier = 1 + cycleNumber * 0.6
-
-    let health = 100
-    let radius = 40
-    let speed = 0.3
-
-    switch (type) {
-      //  EARLY GAME (waves 5-35) 
-      case "alienMouse":
-        health = 100
-        radius = 34
-        speed = 1
-        break
-      case "alienBumblebee":
-        health = 120
-        radius = 42
-        speed = 1.2
-        break
-      case "alienOctopus":
-        health = 180
-        radius = 52
-        speed = 0.9
-        break
-      case "alienMantis":
-        health = 140
-        radius = 46
-        speed = 1.8
-        break
-      case "abductor":
-        health = 200
-        radius = 45
-        speed = 2
-        break
-      case "queenXenoHen":
-        health = 230
-        radius = 50
-        speed = 3
-        break
-      case "devourer":
-        health = 280
-        radius = 55
-        speed = 4
-        break
-
-      //  LATE GAME (waves 40+) — "THE BIG ONES" 
-      case "theButcher":
-        health = 320
-        radius = 42
-        speed = 1.3
-        break
-      case "voidReaper":
-        health = 380
-        radius = 48
-        speed = 0.5
-        break
-      case "plagueBringer":
-        health = 620
-        radius = 46
-        speed = 1.0
-        break
-      case "ironTyrant":
-        health = 500
-        radius = 54
-        speed = 0.9
-        break
-      case "voidLeviathan":
-        health = 600
-        radius = 60
-        speed = 1.2
-        break
-          case "theHive":
-        health = 800
-        radius = 70
-        speed = 0.8
-        break
-      case "omegaPrime":
-        health = 900
-        radius = 70
-        speed = 6
-        break
-    }
-
-    // Apply cycle multiplier
-    health = Math.floor(health * healthMultiplier)
-
-       bossRef.current = {
-      x: canvas.width / 2,
-      y: -radius - 20,
-      radius,
-      health,
-      maxHealth: health,
-      type,
-      speed,
-        spawnTimer: 
-         type === "abductor" 
-      || type === "theHive" 
-      || type === "plagueBringer"
-      || type === "queenXenoHen" 
-      || type === "devourer" 
-      || type === "theButcher" 
-      || type === "voidReaper" 
-      || type === "ironTyrant"
-      || type === "voidLeviathan"
-      ? 0 : undefined,
-
-      shootTimer: type === "queenXenoHen" ? 0 : undefined,
-      buffRadius: type === "queenXenoHen" ? 150 : undefined,
-      phase: 1,
-      combatTimer: type === "voidReaper" ? 0 : undefined,
-      healTimer: type === "voidReaper" ? 0 : undefined,
-      blinkTimer: type === "voidReaper" ? 0 : undefined,
-      reaperShootTimer: type === "voidReaper" ? 0 : undefined,
-      isHealing: type === "voidReaper" ? false : undefined,
-      auraRadius: type === "plagueBringer" ? 250 : undefined,
-      plagueTimer: type === "plagueBringer" ? 0 : undefined,
-      armor: type === "ironTyrant" ? 400 : undefined,
-      maxArmor: type === "ironTyrant" ? 400 : undefined,
-      isArmored: type === "ironTyrant" ? true : undefined,
-      leviathanPhase: type === "voidLeviathan" ? "forceField" : undefined,
-      leviathanPhaseTimer: type === "voidLeviathan" ? 0 : undefined,
-      leviathanWhipTimer: type === "voidLeviathan" ? 0 : undefined,
-      leviathanDashCount: type === "voidLeviathan" ? 0 : undefined,
-      leviathanHealTimer: type === "voidLeviathan" ? 0 : undefined,
-      leviathanWaveTimer: type === "voidLeviathan" ? 0 : undefined,
-      hivePhase: type === "theHive" ? 1 : undefined,
-      hiveAttackTimer: type === "theHive" ? 0 : undefined,
-      hiveAttackChoice: type === "theHive" ? 0 : undefined,
-    }
-
-    // Boss announcement sound
-    playSound(100, 0.5, "sawtooth")
+  if (boss) {
+    bossRef.current = boss
   }
+}
 
   // Shoot projectile
   const shoot = (canvas: HTMLCanvasElement, angle?: number) => {
