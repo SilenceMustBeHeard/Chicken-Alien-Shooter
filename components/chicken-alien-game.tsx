@@ -14,6 +14,7 @@ import { createBossContext } from "@/lib/game/context/impl/create-boss-context"
 import { createAudioSystem, type OscillatorWaveType } from "@/lib/game/audio"
 import { getBossBehavior } from "@/lib/game/bosses"
 import { spawnBoss as spawnBossFromRegistry } from "@/lib/game/boss-spawning"
+import { drawPlayer as drawPlayerFromModule, updatePlayer as updatePlayerFromModule } from "@/lib/game/player"
 
 import type {
   GameObject,
@@ -847,136 +848,34 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
     }
 
     // Update player movement
-    let dx = 0
-    let dy = 0
+updatePlayerFromModule({
+  player,
+  keys: keysRef.current,
+  mouse: mouseRef.current,
+  canvas,
+  isMobile,
+  joystickActive,
+  joystickPos,
+  shootButtonPressed,
+  deltaTime,
+  shoot: () => shoot(canvas),
+  onCharge: () => {
+    chargeSound()
+    addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
+    addScreenShake(10)
+  },
+  onStun: () => {
+    stunSound()
+    player.stunCooldown = 10000
+    addFloatingText(player.x, player.y - 40, "CACA-DOO!", "#ffff00", 24)
+    addScreenShake(8)
+    enemiesRef.current.forEach((enemy) => {
+      enemy.stunned = true
+      enemy.stunnedTime = 3000
+    })
+  },
+})
 
-    if (isMobile && joystickActive) {
-      dx = joystickPos.x
-      dy = joystickPos.y
-    } else {
-      if (keysRef.current.has("w") || keysRef.current.has("arrowup")) dy -= 1
-      if (keysRef.current.has("s") || keysRef.current.has("arrowdown")) dy += 1
-      if (keysRef.current.has("a") || keysRef.current.has("arrowleft")) dx -= 1
-      if (keysRef.current.has("d") || keysRef.current.has("arrowright")) dx += 1
-    }
-
-    if (player.isCharging) {
-  // Continue charging forward in the stored direction
-  const chargeSpeed = 15
-  player.x += player.chargeDirection.x * chargeSpeed
-  player.y += player.chargeDirection.y * chargeSpeed
-  player.chargeDistance += chargeSpeed
-
-  // Kill enemies in path
-  enemiesRef.current = enemiesRef.current.filter((enemy) => {
-        const edx = player.x - enemy.x
-        const edy = player.y - enemy.y
-        const dist = Math.sqrt(edx * edx + edy * edy)
-
-        if (dist < player.radius + enemy.radius) {
-          enemyDeadSound()
-          scoreRef.current += 10
-          setScore(scoreRef.current)
-          killCountRef.current += 1
-          setKillCount(killCountRef.current)
-          createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
-          addFloatingText(enemy.x, enemy.y - 30, "+10", "#ffff00", 20)
-          addScreenShake(4)
-          return false
-        }
-        return true
-      })
-
-      // Stop charge after distance
-      if (player.chargeDistance > 300) {
-    player.isCharging = false
-    player.chargeDistance = 0
-    player.chargeDirection = { x: 0, y: 0 }
-      }
-    } else if (player.chargeReady) {
-      // Player has a stored charge from power-up; wait for direction input
-      // If a movement key is pressed, consume it and charge in that direction
-      let dirX = 0
-      let dirY = 0
-      if (keysRef.current.has("w") || keysRef.current.has("arrowup")) dirY = -1
-      if (keysRef.current.has("s") || keysRef.current.has("arrowdown")) dirY = 1
-      if (keysRef.current.has("a") || keysRef.current.has("arrowleft")) dirX = -1
-      if (keysRef.current.has("d") || keysRef.current.has("arrowright")) dirX = 1
-
-      if (dirX !== 0 || dirY !== 0) {
-        // Normalize diagonal
-        const len = Math.sqrt(dirX * dirX + dirY * dirY)
-        player.isCharging = true
-        player.chargeDistance = 0
-        player.chargeDirection = { x: dirX / len, y: dirY / len }
-        player.chargeReady = false
-        chargeSound()
-        addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
-        addScreenShake(10)
-
-        // Also move this frame
-        player.x += player.chargeDirection.x * 15
-        player.y += player.chargeDirection.y * 15
-        player.chargeDistance += 15
-      } else {
-        // No direction pressed, allow normal movement
-        const length = Math.sqrt(dx * dx + dy * dy)
-        if (length > 0) {
-          player.x += (dx / length) * player.speed
-          player.y += (dy / length) * player.speed
-        }
-      }
-    } else {
-      // Normal movement
-      const length = Math.sqrt(dx * dx + dy * dy)
-      if (length > 0) {
-        player.x += (dx / length) * player.speed
-        player.y += (dy / length) * player.speed
-      }
-    }
-
-    // Keep player in bounds
-    player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
-    player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
-
-    if (player.chargeCooldown > 0) player.chargeCooldown -= deltaTime
-    if (player.stunCooldown > 0) player.stunCooldown -= deltaTime
-    if (player.invincibleTime > 0) player.invincibleTime--
-
-    // Update shooting
-    if (player.shootCooldown > 0) player.shootCooldown--
-
-    if ((mouseRef.current.down || shootButtonPressed) && player.shootCooldown <= 0) {
-      shoot(canvas)
-    }
-
-    if (keysRef.current.has(" ") && player.stunCooldown <= 0 && !player.isCharging) {
-      stunSound()
-      player.stunCooldown = 10000 // 10 second cooldown
-      addFloatingText(player.x, player.y - 40, "CACA-DOO!", "#ffff00", 24)
-      addScreenShake(8)
-
-      // Stun all enemies for 3 seconds
-      enemiesRef.current.forEach((enemy) => {
-        enemy.stunned = true
-        enemy.stunnedTime = 3000
-      })
-
-      // Remove space key to prevent repeated activation
-      keysRef.current.delete(" ")
-    }
-
-    if (player.weaponType !== "basic" && player.weaponTime > 0) {
-      player.weaponTime -= deltaTime
-      if (player.weaponTime <= 0) {
-        player.weaponType = "basic"
-      }
-    }
-
-    if (player.shield && player.shieldTime > 0) {
-      player.shieldTime -= deltaTime
-      if (player.shieldTime <= 0) player.shield = false
-    }
 
     // Spawn boss
     if (waveRef.current - lastBossWaveRef.current >= 5 && !bossRef.current) {
@@ -2373,139 +2272,7 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     }
 
     // start of player drawing
-
-    // Draw player — Simple White Rooster (front view)
-    ctx.save()
-    ctx.translate(player.x, player.y)
-
-    const now = Date.now()
-    const wingFlap = Math.sin(now / 180) * 0.3
-    const bodyBob = Math.sin(now / 300) * 2
-
-    if (player.isCharging) {
-      ctx.strokeStyle = "rgba(255, 200, 100, 0.8)"
-      ctx.lineWidth = 4
-      for (let i = 0; i < 5; i++) {
-        ctx.beginPath()
-        ctx.moveTo(-player.radius * 1.4 - i * 10, -12 + i * 6)
-        ctx.lineTo(-player.radius * 1.4 - 24 - i * 10, -12 + i * 6)
-        ctx.stroke()
-      }
-    }
-
-    ctx.translate(0, bodyBob)
-
-    // ─── WINGS (2 big simple shapes) ───
-    ctx.save()
-    ctx.translate(-player.radius * 0.7, 0)
-    ctx.rotate(wingFlap)
-    ctx.fillStyle = "#e8e8e8"
-    ctx.beginPath()
-    ctx.ellipse(-player.radius * 0.5, 0, player.radius * 0.9, player.radius * 0.5, -0.2, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = "#888888"
-    ctx.lineWidth = 2
-    ctx.stroke()
-    ctx.restore()
-
-    ctx.save()
-    ctx.translate(player.radius * 0.7, 0)
-    ctx.rotate(-wingFlap)
-    ctx.fillStyle = "#e8e8e8"
-    ctx.beginPath()
-    ctx.ellipse(player.radius * 0.5, 0, player.radius * 0.9, player.radius * 0.5, 0.2, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = "#888888"
-    ctx.lineWidth = 2
-    ctx.stroke()
-    ctx.restore()
-
-    // ─── FEET (2 simple triangles) ───
-    ctx.fillStyle = "#ff9900"
-    ctx.strokeStyle = "#aa5500"
-    ctx.lineWidth = 1.5
-    // Left
-    ctx.beginPath()
-    ctx.moveTo(-player.radius * 0.35, player.radius * 0.85)
-    ctx.lineTo(-player.radius * 0.55, player.radius * 1.15)
-    ctx.lineTo(-player.radius * 0.15, player.radius * 1.15)
-    ctx.closePath()
-    ctx.fill()
-    ctx.stroke()
-    // Right
-    ctx.beginPath()
-    ctx.moveTo(player.radius * 0.35, player.radius * 0.85)
-    ctx.lineTo(player.radius * 0.55, player.radius * 1.15)
-    ctx.lineTo(player.radius * 0.15, player.radius * 1.15)
-    ctx.closePath()
-    ctx.fill()
-    ctx.stroke()
-
-    // ─── BODY (one big white circle) ───
-    ctx.fillStyle = "#ffffff"
-    ctx.beginPath()
-    ctx.arc(0, 0, player.radius, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = "#666666"
-    ctx.lineWidth = 2
-    ctx.stroke()
-
-    // Subtle belly shadow (one arc)
-    ctx.strokeStyle = "#d0d0d0"
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.arc(0, 0, player.radius * 0.7, 0.3, Math.PI - 0.3)
-    ctx.stroke()
-
-    // ─── COMB (one big red blob) ───
-    ctx.fillStyle = "#ee1111"
-    ctx.beginPath()
-    ctx.ellipse(0, -player.radius * 0.95, player.radius * 0.35, player.radius * 0.4, 0, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = "#880000"
-    ctx.lineWidth = 2
-    ctx.stroke()
-
-    // ─── BEAK (one big orange triangle) ───
-    ctx.fillStyle = "#ffaa00"
-    ctx.beginPath()
-    ctx.moveTo(-player.radius * 0.2, -player.radius * 0.05)
-    ctx.lineTo(0, player.radius * 0.3)
-    ctx.lineTo(player.radius * 0.2, -player.radius * 0.05)
-    ctx.closePath()
-    ctx.fill()
-    ctx.strokeStyle = "#aa6600"
-    ctx.lineWidth = 2
-    ctx.stroke()
-
-    // ─── EYES (2 simple black dots) ───
-    ctx.fillStyle = "#000000"
-    ctx.beginPath()
-    ctx.arc(-player.radius * 0.35, -player.radius * 0.3, player.radius * 0.13, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.beginPath()
-    ctx.arc(player.radius * 0.35, -player.radius * 0.3, player.radius * 0.13, 0, Math.PI * 2)
-    ctx.fill()
-
-    // Eye shine (2 tiny white dots)
-    ctx.fillStyle = "#ffffff"
-    ctx.beginPath()
-    ctx.arc(-player.radius * 0.32, -player.radius * 0.33, player.radius * 0.05, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.beginPath()
-    ctx.arc(player.radius * 0.38, -player.radius * 0.33, player.radius * 0.05, 0, Math.PI * 2)
-    ctx.fill()
-
-    // ─── WATTLE (one red blob below beak) ───
-    ctx.fillStyle = "#ee1111"
-    ctx.beginPath()
-    ctx.ellipse(0, player.radius * 0.45, player.radius * 0.12, player.radius * 0.2, 0, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = "#880000"
-    ctx.lineWidth = 1.5
-    ctx.stroke()
-
-    ctx.restore()
+     drawPlayerFromModule(ctx, player)
     // end of player drawing
 
 
