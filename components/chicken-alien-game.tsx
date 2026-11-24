@@ -15,6 +15,12 @@ import { createAudioSystem, type OscillatorWaveType } from "@/lib/game/audio"
 import { getBossBehavior } from "@/lib/game/bosses"
 import { spawnBoss as spawnBossFromRegistry } from "@/lib/game/boss-spawning"
 import { drawPlayer as drawPlayerFromModule, updatePlayer as updatePlayerFromModule } from "@/lib/game/player"
+import {
+  drawAlienCreature as drawAlienCreatureFromModule,
+  spawnEnemies as spawnEnemiesFromModule,
+  updateEnemies as updateEnemiesFromModule,
+} from "@/lib/game/enemies"
+
 
 import type {
   GameObject,
@@ -329,110 +335,6 @@ const stunSound = () => audioSystem.stunSound()
     startGame()
   }
 
-  // Spawn enemies
-  const spawnEnemies = (canvas: HTMLCanvasElement) => {
-    // Calculate difficulty multipliers based on game time
-    const timeInSeconds = gameTimeRef.current / 1000
-    const difficultyTier = Math.floor(timeInSeconds / 30)
-
-    // Calculate group size
-    const groupSize = Math.min(
-      DIFFICULTY_SCALING.GROUP_SIZE_BASE + Math.floor(difficultyTier * DIFFICULTY_SCALING.GROUP_SIZE_INCREASE_PER_30S),
-      DIFFICULTY_SCALING.MAX_GROUP_SIZE,
-    )
-
-    // Calculate speed multiplier
-    const speedMultiplier = 1 + difficultyTier * DIFFICULTY_SCALING.SPEED_INCREASE_PER_30S
-
-    // Check enemy cap
-    const maxEnemies =
-      DIFFICULTY_SCALING.MAX_ENEMIES_BASE + difficultyTier * DIFFICULTY_SCALING.MAX_ENEMIES_INCREASE_PER_30S
-    if (enemiesRef.current.length >= maxEnemies) {
-      return // Soft cap - delay spawning
-    }
-
-    const groupId = Date.now()
-    const side = Math.floor(Math.random() * 4)
-
-    // Determine alien types based on wave progression
-    const alienTypes: Enemy["type"][] = ["grunt"]
-    if (waveRef.current > 5) alienTypes.push("tank")
-    if (waveRef.current > 10) alienTypes.push("leech")
-    if (waveRef.current > 15) alienTypes.push("splitter")
-    if (waveRef.current > 20) alienTypes.push("blinker")
-
-    // Occasionally spawn a tank as a special
-    const spawnTank = Math.random() < DIFFICULTY_SCALING.TANK_SPAWN_CHANCE && waveRef.current > 5
-
-    // Spawn enemies in a cluster formation
-    const centerOffset = Math.random() * 100 - 50
-    for (let i = 0; i < groupSize; i++) {
-      let x, y
-      const clusterOffset = (i - groupSize / 2) * 35 + centerOffset
-
-      switch (side) {
-        case 0: // top
-          x = Math.random() * canvas.width + clusterOffset
-          y = -20 - Math.random() * 40
-          break
-        case 1: // right
-          x = canvas.width + 20 + Math.random() * 40
-          y = Math.random() * canvas.height + clusterOffset
-          break
-        case 2: // bottom
-          x = Math.random() * canvas.width + clusterOffset
-          y = canvas.height + 20 + Math.random() * 40
-          break
-        default: // left
-          x = -20 - Math.random() * 40
-          y = Math.random() * canvas.height + clusterOffset
-      }
-
-      // Spawn tank or choose random type
-      const type = spawnTank && i === 0 ? "tank" : alienTypes[Math.floor(Math.random() * alienTypes.length)]
-
-      // Configure enemy based on type
-      let radius = 12
-      let health = 2 + Math.floor(waveRef.current / 5) // Slower health scaling
-      let speed = (0.4 + difficultyTier * 0.03) * speedMultiplier // Early game slower
-
-      switch (type) {
-        case "tank":
-          radius = 18
-          health *= 3
-          speed *= 0.6
-          break
-        case "leech":
-          radius = 10
-          health *= 0.8
-          speed *= 1.1
-          break
-        case "splitter":
-          radius = 14
-          health *= 1.5
-          break
-        case "blinker":
-          radius = 11
-          speed *= 1.3
-          break
-      }
-
-      enemiesRef.current.push({
-        x,
-        y,
-        radius,
-        speed,
-        health,
-        maxHealth: health,
-        groupId,
-        type,
-        blinkerTimer: type === "blinker" ? Math.random() * 3000 : undefined,
-        healTimer: type === "leech" ? 0 : undefined,
-        alienType: type,
-        color: getAlienColor(type),
-      })
-    }
-  }
 
   // Spawn power-up
   const spawnPowerUp = (canvas: HTMLCanvasElement) => {
@@ -725,100 +627,7 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
     }
   }, [])
 
-  const drawAlienCreature = (ctx: CanvasRenderingContext2D, enemy: Enemy, time: number) => {
-    const color = enemy.hitFlash && enemy.hitFlash > 0 ? "#ffffff" : enemy.color || getAlienColor(enemy.type)
-    const pulse = 1 + Math.sin(time / 260 + enemy.x * 0.01) * 0.06
-    const bob = Math.sin(time / 180 + enemy.x * 0.02) * enemy.radius * 0.08
-    const blink = Math.sin(time / 900 + enemy.y) > 0.94
-    ctx.save()
-    ctx.translate(enemy.x, enemy.y + bob)
-    ctx.scale(pulse, pulse)
-    ctx.shadowBlur = 14
-    ctx.shadowColor = color
-
-    // Each enemy gets its own silhouette and motion signature.
-    if (enemy.type === "tank") {
-      ctx.fillStyle = "#18233d"
-      ctx.beginPath()
-      ctx.roundRect(-enemy.radius, -enemy.radius * 0.78, enemy.radius * 2, enemy.radius * 1.56, 8)
-      ctx.fill()
-      ctx.strokeStyle = color
-      ctx.lineWidth = 3
-      ctx.stroke()
-      ctx.fillStyle = color
-      ctx.fillRect(-enemy.radius * 0.72, -enemy.radius * 0.24, enemy.radius * 1.44, enemy.radius * 0.48)
-    } else if (enemy.type === "leech") {
-      const squish = 1 + Math.sin(time / 100) * 0.18
-      ctx.scale(1 / squish, squish)
-      ctx.fillStyle = color
-      ctx.beginPath()
-      ctx.ellipse(0, 0, enemy.radius * 0.72, enemy.radius * 1.15, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.strokeStyle = "#fda4af"
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(0, enemy.radius * 0.45, enemy.radius * 0.36, 0, Math.PI)
-      ctx.stroke()
-    } else if (enemy.type === "splitter") {
-      ctx.fillStyle = color
-      ctx.beginPath()
-      for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * Math.PI * 2
-        const r = i % 2 ? enemy.radius * 0.72 : enemy.radius * 1.12
-        ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r)
-      }
-      ctx.closePath()
-      ctx.fill()
-      ctx.strokeStyle = "#fde68a"
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.moveTo(0, -enemy.radius * 0.72)
-      ctx.lineTo(0, enemy.radius * 0.72)
-      ctx.stroke()
-    } else if (enemy.type === "blinker") {
-      ctx.globalAlpha = 0.65 + Math.sin(time / 90) * 0.3
-      ctx.fillStyle = color
-      ctx.beginPath()
-      ctx.arc(0, 0, enemy.radius * (0.86 + Math.sin(time / 130) * 0.12), 0, Math.PI * 2)
-      ctx.fill()
-      ctx.strokeStyle = "#e0f2fe"
-      ctx.setLineDash([3, 4])
-      ctx.stroke()
-      ctx.setLineDash([])
-    } else {
-      ctx.fillStyle = color
-      ctx.beginPath()
-      ctx.ellipse(0, 0, enemy.radius, enemy.radius * 0.9, 0, 0, Math.PI * 2)
-      ctx.fill()
-      // Antennae sway independently so the swarm feels alive.
-      ctx.strokeStyle = color
-      ctx.lineWidth = 2
-      for (const side of [-1, 1]) {
-        ctx.beginPath()
-        ctx.moveTo(side * enemy.radius * 0.35, -enemy.radius * 0.65)
-        ctx.quadraticCurveTo(side * enemy.radius * 0.7, -enemy.radius * 1.3, side * enemy.radius * (0.55 + Math.sin(time / 240) * 0.12), -enemy.radius * 1.5)
-        ctx.stroke()
-        ctx.fillStyle = "#fef08a"
-        ctx.beginPath()
-        ctx.arc(side * enemy.radius * (0.55 + Math.sin(time / 240) * 0.12), -enemy.radius * 1.5, 3, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-
-    ctx.shadowBlur = 0
-    ctx.fillStyle = blink ? "#ffffff" : "#07111f"
-    ctx.beginPath()
-    ctx.ellipse(-enemy.radius * 0.34, -enemy.radius * 0.1, enemy.radius * 0.18, enemy.radius * 0.26, 0, 0, Math.PI * 2)
-    ctx.ellipse(enemy.radius * 0.34, -enemy.radius * 0.1, enemy.radius * 0.18, enemy.radius * 0.26, 0, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = "#bffcff"
-    ctx.beginPath()
-    ctx.arc(-enemy.radius * 0.34, -enemy.radius * 0.1, enemy.radius * 0.07, 0, Math.PI * 2)
-    ctx.arc(enemy.radius * 0.34, -enemy.radius * 0.1, enemy.radius * 0.07, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.restore()
-    if (enemy.hitFlash && enemy.hitFlash > 0) enemy.hitFlash--
-  }
+ 
 
   // Update game state
   const update = (canvas: HTMLCanvasElement, deltaTime: number) => {
@@ -884,15 +693,20 @@ updatePlayerFromModule({
     }
 
     // Spawn enemies (disabled during boss fight) with dynamic interval
-    if (!bossRef.current) {
-      spawnTimerRef.current += deltaTime
-      if (spawnTimerRef.current > currentSpawnInterval) {
-        spawnEnemies(canvas)
-        spawnTimerRef.current = 0
-        waveRef.current++
-      }
-    }
-
+ if (!bossRef.current) {
+  spawnTimerRef.current += deltaTime
+  if (spawnTimerRef.current > currentSpawnInterval) {
+    spawnEnemiesFromModule({
+      canvas,
+      wave: waveRef.current,
+      timeInSeconds,
+      existingEnemyCount: enemiesRef.current.length,
+      pushEnemy: (enemy) => enemiesRef.current.push(enemy),
+    })
+    spawnTimerRef.current = 0
+    waveRef.current++
+  }
+}
     const powerUpInterval =
       timeInSeconds < DIFFICULTY_SCALING.POWER_UP_TRANSITION_TIME
         ? DIFFICULTY_SCALING.POWER_UP_EARLY_INTERVAL
@@ -1118,149 +932,31 @@ updatePlayerFromModule({
     }
 
     // Update enemies
-    enemiesRef.current.forEach((enemy) => {
-      if (enemy.stunned && enemy.stunnedTime && enemy.stunnedTime > 0) {
-        enemy.stunnedTime -= deltaTime
-        if (enemy.stunnedTime <= 0) {
-          enemy.stunned = false
-          enemy.stunnedTime = undefined
-        }
-        return // Don't move stunned enemies
+enemiesRef.current = updateEnemiesFromModule({
+  enemies: enemiesRef.current,
+  player,
+  canvas,
+  deltaTime,
+  frameScale,
+  createParticles: (x, y, color) => createParticles(x, y, color),
+  onEnemyContact: (enemy, damage) => {
+    if (player.invincibleTime <= 0 && !player.shield) {
+      player.health -= damage
+      player.invincibleTime = 60
+      chickenHitSound()
+      addScreenShake(8)
+      addFloatingText(player.x, player.y - 30, `-${damage}`, "#ff0000", 18)
+      if (player.health <= 0) {
+        chickenDeathSound()
+        gameStateRef.current = "gameOver"
+        setGameState("gameOver")
+        setFinalScore(scoreRef.current)
+        setFinalKillCount(killCountRef.current)
+        setFinalWave(waveRef.current)
       }
-
-      // Move towards player
-      const dx = player.x - enemy.x
-      const dy = player.y - enemy.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-
-      if (dist > 1) { // guard against NaN from dist === 0
-        // Apply alien type specific behavior
-        switch (enemy.alienType) {
-          case "grunt":
-            enemy.x += (dx / dist) * Math.min(enemy.speed, 2.25) * frameScale
-            enemy.y += (dy / dist) * Math.min(enemy.speed, 2.25) * frameScale
-            break
-
-          case "tank":
-            enemy.x += (dx / dist) * Math.min(enemy.speed * 0.7, 1.6) * frameScale
-            enemy.y += (dy / dist) * Math.min(enemy.speed * 0.7, 1.6) * frameScale
-            break
-
-          case "leech":
-            // Stays at medium distance
-            if (dist > 150) {
-              enemy.x += (dx / dist) * Math.min(enemy.speed, 2.25) * frameScale
-              enemy.y += (dy / dist) * Math.min(enemy.speed, 2.25) * frameScale
-            }
-            break
-
-          case "blinker":
-            if (!enemy.teleportCooldown) enemy.teleportCooldown = 0
-            enemy.teleportCooldown -= deltaTime
-
-            if (enemy.teleportCooldown <= 0 && dist > 100) {
-              const angle = Math.atan2(dy, dx)
-              enemy.x = player.x - Math.cos(angle) * 80
-              enemy.y = player.y - Math.sin(angle) * 80
-              enemy.teleportCooldown = 2000
-              createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
-            } else {
-              enemy.x += (dx / dist) * Math.min(enemy.speed, 2.25) * frameScale
-              enemy.y += (dy / dist) * Math.min(enemy.speed, 2.25) * frameScale
-            }
-            break
-
-          case "splitter":
-          default:
-            enemy.x += (dx / dist) * Math.min(enemy.speed, 2.25) * frameScale
-            enemy.y += (dy / dist) * Math.min(enemy.speed, 2.25) * frameScale
-            break
-        }
-      }
-
-      // Blinker teleport logic
-      if (enemy.type === "blinker" && enemy.blinkerTimer !== undefined) {
-        enemy.blinkerTimer -= deltaTime
-        if (enemy.blinkerTimer <= 0) {
-          // Teleport closer to player
-          const angle = Math.random() * Math.PI * 2
-          const teleportDist = 100 + Math.random() * 50
-          enemy.x = player.x + Math.cos(angle) * teleportDist
-          enemy.y = player.y + Math.sin(angle) * teleportDist
-
-          // Keep within bounds
-          enemy.x = Math.max(30, Math.min(canvas.width - 30, enemy.x))
-          enemy.y = Math.max(30, Math.min(canvas.height - 30, enemy.y))
-
-          enemy.blinkerTimer = 3000 + Math.random() * 2000
-          createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
-        }
-      }
-
-      // Leech healing logic
-      if (enemy.type === "leech" && enemy.healTimer !== undefined) {
-        enemy.healTimer += deltaTime
-        if (enemy.healTimer > 2000) {
-          // Heal nearby aliens
-          enemiesRef.current.forEach((other) => {
-            if (other !== enemy) {
-              const dx2 = other.x - enemy.x
-              const dy2 = other.y - enemy.y
-              const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2)
-              if (dist2 < 80 && other.health < other.maxHealth) {
-                other.health = Math.min(other.maxHealth, other.health + 1)
-              }
-            }
-          })
-          enemy.healTimer = 0
-        }
-      }
-
-      // Resolve contact before applying damage. A separating impulse plus a short
-      // cooldown prevents enemies from tunneling back into the chicken every frame.
-      if (enemy.contactCooldown && enemy.contactCooldown > 0) enemy.contactCooldown -= deltaTime
-      const dxPlayerEnemy = player.x - enemy.x
-      const dyPlayerEnemy = player.y - enemy.y
-      const distSquared = dxPlayerEnemy * dxPlayerEnemy + dyPlayerEnemy * dyPlayerEnemy
-      const contactDistance = player.radius + enemy.radius
-
-      if (distSquared < contactDistance * contactDistance) {
-        const distPlayerEnemy = Math.sqrt(distSquared)
-        const normalX = distPlayerEnemy > 0.001 ? dxPlayerEnemy / distPlayerEnemy : -1
-        const normalY = distPlayerEnemy > 0.001 ? dyPlayerEnemy / distPlayerEnemy : 0
-        const separation = contactDistance + 8
-
-        // Put the alien fully outside the chicken's hit circle, even when they
-        // start at exactly the same position or the chicken is against a wall.
-        enemy.x = player.x - normalX * separation
-        enemy.y = player.y - normalY * separation
-        enemy.x = Math.max(enemy.radius, Math.min(canvas.width - enemy.radius, enemy.x))
-        enemy.y = Math.max(enemy.radius, Math.min(canvas.height - enemy.radius, enemy.y))
-
-        if ((enemy.contactCooldown ?? 0) <= 0) {
-          enemy.contactCooldown = 350
-          if (player.invincibleTime <= 0 && !player.shield) {
-            const damage = enemy.type === "tank" ? 20 : 10
-            player.health -= damage
-            player.invincibleTime = 60 // ~1 second of invincibility at 60fps
-            chickenHitSound()
-            addScreenShake(8)
-            addFloatingText(player.x, player.y - 30, `-${damage}`, "#ff0000", 18)
-            if (player.health <= 0) {
-              chickenDeathSound()
-              gameStateRef.current = "gameOver"
-              setGameState("gameOver")
-              setFinalScore(scoreRef.current)
-              setFinalKillCount(killCountRef.current)  
-             setFinalWave(waveRef.current)            
-            }
-          }
-          createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
-        }
-      }
-    })
-
-    enemiesRef.current = enemiesRef.current.filter((enemy) => enemy.health > 0) // Filter out dead enemies
+    }
+  },
+})
 
     flyingSaucersRef.current = flyingSaucersRef.current.filter((saucer) => {
       // Move horizontally
@@ -1785,7 +1481,7 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     // Draw enemies with distinct silhouettes and animation loops.
     const animationTime = Date.now()
     enemiesRef.current.forEach((enemy) => {
-      drawAlienCreature(ctx, enemy, animationTime)
+     drawAlienCreatureFromModule(ctx, enemy, animationTime)
       const bob = Math.sin(animationTime / 180 + enemy.x * 0.02) * enemy.radius * 0.08
 
       if (enemy.maxHealth > 3) {
