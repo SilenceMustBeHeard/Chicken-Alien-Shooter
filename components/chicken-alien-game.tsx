@@ -20,6 +20,11 @@ import {
   spawnEnemies as spawnEnemiesFromModule,
   updateEnemies as updateEnemiesFromModule,
 } from "@/lib/game/enemies"
+import {
+  shoot as shootFromModule,
+  updateProjectiles as updateProjectilesFromModule,
+  drawProjectile as drawProjectileFromModule,
+} from "@/lib/game/projectiles"
 
 
 import type {
@@ -413,123 +418,19 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
 }
 
   // Shoot projectile
-  const shoot = (canvas: HTMLCanvasElement, angle?: number) => {
-    const player = playerRef.current
-    if (!player) return
+ const shoot = (canvas: HTMLCanvasElement, angle?: number) => {
+  const player = playerRef.current
+  if (!player) return
 
-    const getShootAngle = () => {
-      return angle !== undefined ? angle : Math.atan2(mouseRef.current.y - player.y, mouseRef.current.x - player.x)
-    }
-
-    let cooldownTime = 15
-
-    if (player.shootCooldown <= 0) {
-      shootSound()
-
-      switch (player.weaponType) {
-        case "basic":
-          // Single egg
-          cooldownTime = 15
-          projectilesRef.current.push({
-            x: player.x,
-            y: player.y,
-            radius: 5,
-            vx: Math.cos(getShootAngle()) * 8,
-            vy: Math.sin(getShootAngle()) * 8,
-            damage: 1,
-            color: "#ffffff",
-          })
-          break
-
-        case "doubleYolk":
-          // Fires 2 eggs side by side
-          cooldownTime = 10
-          for (let i = -1; i <= 1; i += 2) {
-            const perpAngle = getShootAngle() + Math.PI / 2
-            const offsetX = Math.cos(perpAngle) * 8 * i
-            const offsetY = Math.sin(perpAngle) * 8 * i
-
-            projectilesRef.current.push({
-              x: player.x + offsetX,
-              y: player.y + offsetY,
-              radius: 5,
-              vx: Math.cos(getShootAngle()) * 8,
-              vy: Math.sin(getShootAngle()) * 8,
-              damage: 1,
-              color: "#ffffff",
-            })
-          }
-          break
-
-        case "scrambled":
-          // Spread shot - 5 eggs in a cone
-          cooldownTime = 12
-          for (let i = -2; i <= 2; i++) {
-            const spreadAngle = getShootAngle() + i * 0.25
-            projectilesRef.current.push({
-              x: player.x,
-              y: player.y,
-              radius: 4,
-              vx: Math.cos(spreadAngle) * 7,
-              vy: Math.sin(spreadAngle) * 7,
-              damage: 1,
-              color: "#ffaa00",
-            })
-          }
-          break
-
-        case "hardBoiled":
-          // Piercing egg
-          cooldownTime = 20
-          projectilesRef.current.push({
-            x: player.x,
-            y: player.y,
-            radius: 6,
-            vx: Math.cos(getShootAngle()) * 10,
-            vy: Math.sin(getShootAngle()) * 10,
-            damage: 2,
-            piercing: true,
-            color: "#8b4513",
-          })
-          break
-
-        case "explosive":
-          // Explosive egg with AoE
-          cooldownTime = 25
-          projectilesRef.current.push({
-            x: player.x,
-            y: player.y,
-            radius: 7,
-            vx: Math.cos(getShootAngle()) * 6,
-            vy: Math.sin(getShootAngle()) * 6,
-            damage: 3,
-            explosive: true,
-            explosionRadius: 50,
-            color: "#ff6600",
-          })
-          break
-
-        case "golden":
-          // Massive damage, slow fire rate
-          cooldownTime = 30
-          projectilesRef.current.push({
-            x: player.x,
-            y: player.y,
-            radius: 8,
-            vx: Math.cos(getShootAngle()) * 12,
-            vy: Math.sin(getShootAngle()) * 12,
-            damage: 10,
-            explosive: true,
-            explosionRadius: 80,
-            color: "#ffd700",
-          })
-          playSound(1200, 0.3, "sine") // Special golden egg sound
-          break
-      }
-
-      player.shootCooldown = cooldownTime
-    }
-  }
+  shootFromModule({
+    player,
+    angle,
+    mouseX: mouseRef.current.x,
+    mouseY: mouseRef.current.y,
+    pushProjectile: (proj) => projectilesRef.current.push(proj),
+    playSound,
+  })
+}
 
   // Create particles
   const createParticles = (x: number, y: number, color: string) => {
@@ -1013,301 +914,180 @@ enemiesRef.current = updateEnemiesFromModule({
     }
 
         // Update projectiles and check enemy collision
-    projectilesRef.current = projectilesRef.current.filter((proj) => {
-      if (proj.dead) return false
+projectilesRef.current = updateProjectilesFromModule({
+  projectiles: projectilesRef.current,
+  player,
+  canvas,
+  deltaTime,
+  bossRef,
+  enemiesRef,
 
-      //  LEVIATHAN WAVE (collision + kick) 
-      if (proj.isLeviathanWave) {
-        proj.waveAge = (proj.waveAge || 0) + deltaTime
+  onLeviathanWaveHit: (proj, player) => {
+    player.health -= 50
+    player.invincibleTime = 120
+    chickenHitSound()
+    addScreenShake(40)
+    addFloatingText(player.x, player.y - 40, "-50", "#ff0000", 32)
 
-        if (proj.waveAge >= (proj.waveMaxAge || 3500)) {
-          return false
-        }
+    const waveDx = proj.x - player.x
+    const waveDy = proj.y - player.y
+    const pushAngle = Math.atan2(waveDy, waveDx)
+    const mapDiagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
+    const kickDistance = mapDiagonal * 1.2
 
-        const waveMaxAge = proj.waveMaxAge || 3500
-        const waveProgress = Math.min(proj.waveAge / waveMaxAge, 1)
-        const currentRadius = proj.radius * (1 + waveProgress * 3.5)
+    player.x += Math.cos(pushAngle) * kickDistance
+    player.y += Math.sin(pushAngle) * kickDistance
+    player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
+    player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
 
-        if (player.invincibleTime > 0) return true
+    createParticles(player.x, player.y, "#a855f7")
+    playSound(150, 0.4, "sawtooth")
+    playSound(80, 0.6, "triangle")
 
-        const waveDx = proj.x - player.x
-        const waveDy = proj.y - player.y
-        const waveDist = Math.sqrt(waveDx * waveDx + waveDy * waveDy)
+    if (player.health <= 0) {
+      chickenDeathSound()
+      gameStateRef.current = "gameOver"
+      setGameState("gameOver")
+      setFinalScore(scoreRef.current)
+      setFinalKillCount(killCountRef.current)
+      setFinalWave(waveRef.current)
+    }
+  },
 
-        if (waveDist < currentRadius + player.radius) {
-          if (!player.shield) {
-            player.health -= 50
-            player.invincibleTime = 120
-            chickenHitSound()
-            addScreenShake(40)
-            addFloatingText(player.x, player.y - 40, "-50", "#ff0000", 32)
+  onHiveLordHit: () => {},
+  onHiveSpawnHit: () => {},
 
-            const pushAngle = Math.atan2(waveDy, waveDx)
-            const mapDiagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
-            const kickDistance = mapDiagonal * 1.2
+  onEnemyProjectileHitPlayer: (proj, player) => {
+    player.health -= proj.damage
+    player.invincibleTime = 30
+    chickenHitSound()
+    addScreenShake(6)
+    addFloatingText(player.x, player.y - 30, `-${proj.damage}`, "#ff4444", 18)
+    createParticles(proj.x, proj.y, proj.color || "#28f0ff")
 
-            player.x += Math.cos(pushAngle) * kickDistance
-            player.y += Math.sin(pushAngle) * kickDistance
+    if (player.health <= 0) {
+      chickenDeathSound()
+      gameStateRef.current = "gameOver"
+      setGameState("gameOver")
+      setFinalScore(scoreRef.current)
+      setFinalKillCount(killCountRef.current)
+      setFinalWave(waveRef.current)
+    }
+  },
 
-            player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
-            player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
+  onBossHit: (proj, boss) => {
+    if (boss.isArmored && boss.armor !== undefined && boss.armor > 0) {
+      boss.armor -= proj.damage
+      createParticles(proj.x, proj.y, "#94a3b8")
 
-            createParticles(player.x, player.y, "#a855f7")
-            playSound(150, 0.4, "sawtooth")
-            playSound(80, 0.6, "triangle")
-
-            if (player.health <= 0) {
-              chickenDeathSound()
-              gameStateRef.current = "gameOver"
-              setGameState("gameOver")
-              setFinalScore(scoreRef.current)
-              setFinalKillCount(killCountRef.current)
-              setFinalWave(waveRef.current)
-            }
-          }
-          return false
-        }
-
-        return true
+      if (boss.armor <= 0) {
+        boss.armor = 0
+        boss.isArmored = false
+        addFloatingText(boss.x, boss.y - 50, "ARMOR BROKEN!", "#fbbf24", 28)
+        addScreenShake(20)
+        playSound(150, 0.5, "sawtooth")
       }
+    } else {
+      boss.health -= proj.damage
+    }
 
-              // ─── HIVE PHASE 2 & 3: PLAYER PROJECTILES HIT LORDS/SPAWNS ───
-      {
-        const hiveBoss = bossRef.current
-        if (
-          hiveBoss &&
-          !proj.isEnemyProjectile &&
-          (hiveBoss.hivePhase === 2 || hiveBoss.hivePhase === 3)
-        ) {
-          // ─── Phase 2: Lords ───
-          if (hiveBoss.hivePhase === 2 && hiveBoss.hiveLordA && hiveBoss.hiveLordB) {
-            const lordA = hiveBoss.hiveLordA
-            const lordB = hiveBoss.hiveLordB
-            const lordRadius = 30
-            const shieldReduction = 0.75  
-            const dA = Math.sqrt((proj.x - lordA.x) ** 2 + (proj.y - lordA.y) ** 2)
-            const dB = Math.sqrt((proj.x - lordB.x) ** 2 + (proj.y - lordB.y) ** 2)
+    eggSplashSound()
+    createParticles(boss.x, boss.y, "#ff4444")
+    addFloatingText(boss.x, boss.y - 30, `-${proj.damage}`, "#ff9999", 18)
+    addScreenShake(4)
 
-            if (dA < proj.radius + lordRadius) {
-              lordA.health -= proj.damage * shieldReduction
-              createParticles(proj.x, proj.y, "#3b82f6")
-              addFloatingText(proj.x, proj.y - 20, `-${Math.round(proj.damage * shieldReduction)}`, "#93c5fd", 16)
-              playSound(400, 0.08, "square")
-              return false
-            }
+    if (proj.explosive) {
+      createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+      playSound(150, 0.2, "sawtooth")
+      addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
+    }
 
-            if (dB < proj.radius + lordRadius) {
-              lordB.health -= proj.damage
-              createParticles(proj.x, proj.y, "#22c55e")
-              addFloatingText(proj.x, proj.y - 20, `-${Math.round(proj.damage)}`, "#86efac", 16)
-              playSound(400, 0.08, "square")
-              return false
-            }
-          }
-
-          // ─── Phase 3: Hive Spawns ───
-          if (hiveBoss.hivePhase === 3 && hiveBoss.hiveSpawns) {
-            for (const spawn of hiveBoss.hiveSpawns) {
-              const sdx = proj.x - spawn.x
-              const sdy = proj.y - spawn.y
-              const sdist = Math.sqrt(sdx * sdx + sdy * sdy)
-
-              if (sdist < proj.radius + 25) {
-                spawn.health -= proj.damage
-                createParticles(proj.x, proj.y, "#dc2626")
-                addFloatingText(proj.x, proj.y - 20, `-${Math.round(proj.damage)}`, "#fca5a5", 16)
-                playSound(400, 0.08, "square")
-                return false
-              }
-            }
-          }
-        }
+    if (boss.health <= 0) {
+      enemyDeadSound()
+      scoreRef.current += 500
+      setScore(scoreRef.current)
+      killCountRef.current += 1
+      setKillCount(killCountRef.current)
+      createParticles(boss.x, boss.y, "#ff0000")
+      addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+      addScreenShake(15)
+      for (let p = 0; p < 3; p++) {
+        spawnWeaponPowerUp(boss.x + (Math.random() - 0.5) * 80, boss.y + (Math.random() - 0.5) * 80)
       }
-      
-      
+      bossRef.current = null
+      lastBossWaveRef.current = waveRef.current
+    }
+  },
 
-      // Move projectile (ONCE, for both player and enemy)
-      proj.x += proj.vx
-      proj.y += proj.vy
+  onEnemyHit: (proj, enemy) => {
+    const damage = proj.damage
 
-      // Remove if out of bounds
-      if (proj.x < 0 || proj.x > canvas.width || proj.y < 0 || proj.y > canvas.height) {
-        return false
-      }
+    enemy.health -= damage
+    enemy.hitFlash = 5
 
-      //  ENEMY PROJECTILE: only hits player 
-      if (proj.isEnemyProjectile) {
-        const dxp = proj.x - player.x
-        const dyp = proj.y - player.y
-        const distp = Math.sqrt(dxp * dxp + dyp * dyp)
+    eggSplashSound()
+    createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+    addFloatingText(enemy.x, enemy.y - 20, `-${damage}`, "#ff9999", 16)
 
-        if (distp < proj.radius + player.radius) {
-          if (!player.shield && player.invincibleTime <= 0) {
-            player.health -= proj.damage
-            player.invincibleTime = 30
-            chickenHitSound()
-            addScreenShake(6)
-            addFloatingText(player.x, player.y - 30, `-${proj.damage}`, "#ff4444", 18)
-            createParticles(proj.x, proj.y, proj.color || "#28f0ff")
+    if (!proj.piercing) {
+      proj.dead = true
+    }
 
-            if (player.health <= 0) {
-              chickenDeathSound()
-              gameStateRef.current = "gameOver"
-              setGameState("gameOver")
-              setFinalScore(scoreRef.current)
-              setFinalKillCount(killCountRef.current)
-              setFinalWave(waveRef.current)
-            }
-          }
-          return false
-        }
+    if (enemy.health <= 0) {
+      enemyDeadSound()
+      scoreRef.current += 10
+      setScore(scoreRef.current)
+      killCountRef.current += 1
+      setKillCount(killCountRef.current)
+      createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
+      addFloatingText(enemy.x, enemy.y - 30, "+10", "#ffff00", 20)
+      addScreenShake(3)
 
-        return true
-      }
-
-      //  PLAYER PROJECTILE: check boss 
-      const boss = bossRef.current
-      if (boss) {
-        const bdx = proj.x - boss.x
-        const bdy = proj.y - boss.y
-        const bdist = Math.sqrt(bdx * bdx + bdy * bdy)
-
-        const bossHit = proj.explosive && proj.explosionRadius
-          ? bdist < proj.explosionRadius + boss.radius
-          : bdist < proj.radius + boss.radius
-
-        if (bossHit) {
-          // Armored boss: damage armor first
-          if (boss.isArmored && boss.armor !== undefined && boss.armor > 0) {
-            boss.armor -= proj.damage
-            createParticles(proj.x, proj.y, "#94a3b8")
-
-            if (boss.armor <= 0) {
-              boss.armor = 0
-              boss.isArmored = false
-              addFloatingText(boss.x, boss.y - 50, "ARMOR BROKEN!", "#fbbf24", 28)
-              addScreenShake(20)
-              playSound(150, 0.5, "sawtooth")
-            }
-          } else {
-            boss.health -= proj.damage
-          }
-
-          eggSplashSound()
-          createParticles(boss.x, boss.y, "#ff4444")
-          addFloatingText(boss.x, boss.y - 30, `-${proj.damage}`, "#ff9999", 18)
-          addScreenShake(4)
-
-          if (proj.explosive) {
-            createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
-            playSound(150, 0.2, "sawtooth")
-            addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
-          }
-
-          if (boss.health <= 0) {
-            enemyDeadSound()
-            scoreRef.current += 500
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            createParticles(boss.x, boss.y, "#ff0000")
-            addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-            addScreenShake(15)
-            for (let p = 0; p < 3; p++) {
-              spawnWeaponPowerUp(boss.x + (Math.random() - 0.5) * 80, boss.y + (Math.random() - 0.5) * 80)
-            }
-            bossRef.current = null
-            lastBossWaveRef.current = waveRef.current
-          }
-
-          if (!proj.piercing) {
-            proj.dead = true
-            return false
-          }
+      if (enemy.type === "splitter" && enemy.radius > 8) {
+        for (let j = 0; j < 2; j++) {
+          const angle = (Math.PI / 3) * j + (Math.random() * Math.PI) / 6
+          enemiesRef.current.push({
+            x: enemy.x + Math.cos(angle) * 20,
+            y: enemy.y + Math.sin(angle) * 20,
+            radius: 8,
+            speed: enemy.speed * 1.2,
+            health: 1,
+            maxHealth: 1,
+            groupId: enemy.groupId,
+            type: "grunt",
+            alienType: "grunt",
+            color: getAlienColor("grunt"),
+          })
         }
       }
 
-      //  PLAYER PROJECTILE: check enemies 
-      const enemiesToDamage: Enemy[] = []
-
-      for (let i = 0; i < enemiesRef.current.length; i++) {
-        const enemy = enemiesRef.current[i]
-        const dx = proj.x - enemy.x
-        const dy = proj.y - enemy.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-
-        if (proj.explosive && proj.explosionRadius) {
-          if (dist < proj.explosionRadius) {
-            enemiesToDamage.push(enemy)
-          }
-        } else if (dist < proj.radius + enemy.radius) {
-          enemiesToDamage.push(enemy)
-          break
-        }
+      const index = enemiesRef.current.indexOf(enemy)
+      if (index > -1) {
+        enemiesRef.current.splice(index, 1)
       }
+    }
+  },
 
-      if (enemiesToDamage.length > 0) {
-        enemiesToDamage.forEach((enemy) => {
-          const damage = proj.damage
+  createParticles,
+  addFloatingText,
+  addScreenShake,
+  playSound,
+  eggSplashSound,
+  enemyDeadSound,
+  chickenHitSound,
+  chickenDeathSound,
+  setGameOver: () => {
+    gameStateRef.current = "gameOver"
+    setGameState("gameOver")
+  },
+  spawnWeaponPowerUp,
+  getAlienColor,
+  scoreRef,
+  setScore,
+  killCountRef,
+  setKillCount,
+})
 
-          enemy.health -= damage
-          enemy.hitFlash = 5
-
-          eggSplashSound()
-          createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
-          addFloatingText(enemy.x, enemy.y - 20, `-${damage}`, "#ff9999", 16)
-
-          if (!proj.piercing) {
-            proj.dead = true
-          }
-
-          if (enemy.health <= 0) {
-            enemyDeadSound()
-            scoreRef.current += 10
-            setScore(scoreRef.current)
-            killCountRef.current += 1
-            setKillCount(killCountRef.current)
-            createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
-            addFloatingText(enemy.x, enemy.y - 30, "+10", "#ffff00", 20)
-            addScreenShake(3)
-
-            if (enemy.type === "splitter" && enemy.radius > 8) {
-              for (let j = 0; j < 2; j++) {
-                const angle = (Math.PI / 3) * j + (Math.random() * Math.PI) / 6
-                enemiesRef.current.push({
-                  x: enemy.x + Math.cos(angle) * 20,
-                  y: enemy.y + Math.sin(angle) * 20,
-                  radius: 8,
-                  speed: enemy.speed * 1.2,
-                  health: 1,
-                  maxHealth: 1,
-                  groupId: enemy.groupId,
-                  type: "grunt",
-                  alienType: "grunt",
-                  color: getAlienColor("grunt"),
-                })
-              }
-            }
-
-            const index = enemiesRef.current.indexOf(enemy)
-            if (index > -1) {
-              enemiesRef.current.splice(index, 1)
-            }
-          }
-        })
-
-        if (proj.explosive) {
-          createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
-          playSound(150, 0.2, "sawtooth")
-          addScreenShake(6)
-          addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
-        }
-
-        return proj.piercing && !proj.explosive
-      }
-
-      return true
-    })
 
     // Check collisions between player and power-ups
     powerUpsRef.current = powerUpsRef.current.filter((powerUp) => {
