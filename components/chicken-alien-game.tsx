@@ -20,11 +20,20 @@ import {
   spawnEnemies as spawnEnemiesFromModule,
   updateEnemies as updateEnemiesFromModule,
 } from "@/lib/game/enemies"
+
 import {
   shoot as shootFromModule,
   updateProjectiles as updateProjectilesFromModule,
   drawProjectile as drawProjectileFromModule,
 } from "@/lib/game/projectiles"
+
+import {
+  spawnPowerUp as spawnPowerUpFromModule,
+  spawnWeaponPowerUp as spawnWeaponPowerUpFromModule,
+  updatePowerUps as updatePowerUpsFromModule,
+  drawPowerUp as drawPowerUpFromModule,
+  drawPowerUpDetailed as drawPowerUpDetailedFromModule,
+} from "@/lib/game/powerups"
 
 
 import type {
@@ -343,54 +352,18 @@ const stunSound = () => audioSystem.stunSound()
 
   // Spawn power-up
   const spawnPowerUp = (canvas: HTMLCanvasElement) => {
-    const types: PowerUp["type"][] = [
-      "doubleYolk",
-      "scrambled",
-      "hardBoiled",
-      "explosive",
-      "shield",
-      "health",
-      "speedBoost",
-      "charge", // Added charge
-      "charge", // Add twice to make it more common
-    ]
+  spawnPowerUpFromModule(canvas, (powerUp) => powerUpsRef.current.push(powerUp))
+}
 
-    // Golden egg is rare
-    if (Math.random() < 0.05) {
-      types.push("golden")
-    }
-
-    const type = types[Math.floor(Math.random() * types.length)]
-
-    powerUpsRef.current.push({
-      x: Math.random() * (canvas.width - 100) + 50,
-      y: Math.random() * (canvas.height - 100) + 50,
-      radius: 10,
-      type,
-      lifetime: 10000,
-    })
-  }
 
   // Spawn weapon power-up from flying saucer
+
   const spawnWeaponPowerUp = (x: number, y: number) => {
-    const weaponTypes: PowerUp["type"][] = ["doubleYolk", "scrambled", "hardBoiled", "explosive", "charge"] // Added charge
-
-    if (Math.random() < 0.1) {
-      weaponTypes.push("golden")
-    }
-
-    const type = weaponTypes[Math.floor(Math.random() * weaponTypes.length)]
-
-    powerUpsRef.current.push({
-      x,
-      y,
-      radius: 12,
-      type,
-      lifetime: 15000,
-    })
-  }
+  spawnWeaponPowerUpFromModule(x, y, (powerUp) => powerUpsRef.current.push(powerUp))
+}
 
   // Spawn flying saucers
+
   const spawnFlyingSaucer = (canvas: HTMLCanvasElement) => {
     const side = Math.random() < 0.5 ? 0 : 1 // Left or right
     const y = Math.random() * (canvas.height * 0.6) + canvas.height * 0.1 // Top 70% of screen
@@ -1090,58 +1063,50 @@ projectilesRef.current = updateProjectilesFromModule({
 
 
     // Check collisions between player and power-ups
-    powerUpsRef.current = powerUpsRef.current.filter((powerUp) => {
-      const dx = player.x - powerUp.x
-      const dy = player.y - powerUp.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
+    powerUpsRef.current = updatePowerUpsFromModule({
+  powerUps: powerUpsRef.current,
+  player,
+  deltaTime,
+  onCollect: (powerUp) => {
+    powerUpSound()
 
-      if (dist < player.radius + powerUp.radius) {
-        powerUpSound()
+    switch (powerUp.type) {
+      case "doubleYolk":
+      case "scrambled":
+      case "hardBoiled":
+      case "explosive":
+      case "golden":
+        player.weaponType = powerUp.type
+        player.weaponTime = 15000
+        addFloatingText(player.x, player.y - 40, powerUp.type.toUpperCase(), "#ffaa00", 20)
+        break
 
-        switch (powerUp.type) {
-          case "doubleYolk":
-          case "scrambled":
-          case "hardBoiled":
-          case "explosive":
-          case "golden":
-            player.weaponType = powerUp.type
-            player.weaponTime = 15000 // 15 seconds
-            addFloatingText(player.x, player.y - 40, powerUp.type.toUpperCase(), "#ffaa00", 20)
-            break
+      case "shield":
+        player.shield = true
+        player.shieldTime = 10000
+        addFloatingText(player.x, player.y - 40, "SHIELD!", "#00ffff", 20)
+        break
 
-          case "shield":
-            player.shield = true
-            player.shieldTime = 10000 // 10 seconds
-            addFloatingText(player.x, player.y - 40, "SHIELD!", "#00ffff", 20)
-            break
+      case "health":
+        player.health = Math.min(player.health + 30, player.maxHealth)
+        addFloatingText(player.x, player.y - 40, "+30 HP", "#00ff00", 20)
+        break
 
-          case "health":
-            player.health = Math.min(player.health + 30, player.maxHealth)
-            addFloatingText(player.x, player.y - 40, "+30 HP", "#00ff00", 20)
-            break
+      case "speedBoost":
+        player.speed = 8
+        setTimeout(() => {
+          if (playerRef.current) playerRef.current.speed = 5
+        }, 5000)
+        addFloatingText(player.x, player.y - 40, "SPEED UP!", "#ff00ff", 20)
+        break
 
-          case "speedBoost":
-            player.speed = 8
-            setTimeout(() => {
-              if (playerRef.current) playerRef.current.speed = 5
-            }, 5000)
-            addFloatingText(player.x, player.y - 40, "SPEED UP!", "#ff00ff", 20)
-            break
-
-              // Power-up:
-case "charge":
-  player.chargeCooldown = 0  // reset cooldown
-  addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
-  break
-        }
-
-        return false
-      }
-
-      // Remove power-ups after lifetime
-      powerUp.lifetime -= deltaTime
-      return powerUp.lifetime > 0
-    })
+      case "charge":
+        player.chargeCooldown = 0
+        addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
+        break
+    }
+  },
+})
 
     // Update particles
     particlesRef.current = particlesRef.current.filter((particle) => {
@@ -1201,62 +1166,10 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     })
     ctx.globalAlpha = 1
 
-  powerUpsRef.current.forEach((powerUp) => {
-  const colors = {
-    doubleYolk: "#ffff00",
-    scrambled: "#ffaa00",
-    hardBoiled: "#8b4513",
-    explosive: "#ff3300",
-    golden: "#ffd700",
-    shield: "#00ffff",
-    health: "#00ff00",
-    speedBoost: "#ff00ff",
-    charge: "#f32206", 
-  }
 
-      const pulse = 1 + Math.sin(Date.now() / 200) * 0.15
-
-      // Glow
-      ctx.shadowBlur = 15
-      ctx.shadowColor = colors[powerUp.type] || "#ffffff" // Fallback color
-
-      ctx.fillStyle = colors[powerUp.type] || "#ffffff"
-      ctx.beginPath()
-      ctx.arc(powerUp.x, powerUp.y, powerUp.radius * pulse, 0, Math.PI * 2)
-      ctx.fill()
-
-      ctx.shadowBlur = 0
-
-      // Golden egg special glow
-      if (powerUp.type === "golden") {
-        ctx.strokeStyle = "#ffff00"
-        ctx.lineWidth = 2
-        ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 200) * 0.5
-        ctx.beginPath()
-        ctx.arc(powerUp.x, powerUp.y, powerUp.radius * pulse + 5, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.globalAlpha = 1
-      }
-
-      ctx.fillStyle = "#000"
-      ctx.font = "bold 10px Arial"
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      const icons = {
-        doubleYolk: "2",
-        scrambled: "S",
-        hardBoiled: "P",
-        explosive: "E",
-        golden: "G",
-        shield: "S",
-        health: "+",
-        speedBoost: "F",
-          charge: "Q",
-      }
-      if (icons[powerUp.type]) {
-        ctx.fillText(icons[powerUp.type], powerUp.x, powerUp.y)
-      }
-    })
+// powerUpsRef.current.forEach((powerUp) => {
+//   drawPowerUpFromModule(ctx, powerUp)
+// })
 
     // Draw enemies with distinct silhouettes and animation loops.
     const animationTime = Date.now()
@@ -1774,101 +1687,10 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
 
       ctx.restore()
     })
+powerUpsRef.current.forEach((powerUp) => {
+  drawPowerUpDetailedFromModule(ctx, powerUp)
+})
 
-    powerUpsRef.current.forEach((powerUp) => {
-      ctx.save()
-      ctx.translate(powerUp.x, powerUp.y)
-
-      // Pulsing glow effect
-      const pulseScale = 1 + Math.sin(Date.now() / 200) * 0.15
-      ctx.shadowBlur = 20
-      ctx.shadowColor = (() => {
-        switch (powerUp.type) {
-          case "doubleYolk":
-            return "#ffaa00"
-          case "scrambled":
-            return "#ff6600"
-          case "hardBoiled":
-            return "#888888"
-          case "explosive":
-            return "#ff0000"
-          case "golden":
-            return "#ffff00"
-          case "shield":
-            return "#00ffff"
-          case "health":
-            return "#00ff00"
-          case "speedBoost":
-            return "#ff00ff"
-          case "charge":
-            return "#ff4400"
-          default:
-            return "#ffffff"
-        }
-      })()
-
-      ctx.scale(pulseScale, pulseScale)
- // Draw power-up shape
-      if (powerUp.type === "shield") {
-        // Shield icon
-        ctx.fillStyle = "#00ffff"
-        ctx.beginPath()
-        ctx.moveTo(0, -powerUp.radius)
-        ctx.quadraticCurveTo(powerUp.radius, -powerUp.radius, powerUp.radius, 0)
-        ctx.quadraticCurveTo(powerUp.radius, powerUp.radius, 0, powerUp.radius)
-        ctx.quadraticCurveTo(-powerUp.radius, powerUp.radius, -powerUp.radius, 0)
-        ctx.quadraticCurveTo(-powerUp.radius, -powerUp.radius, 0, -powerUp.radius)
-        ctx.fill()
-      } else if (powerUp.type === "health") {
-        // Health cross
-        ctx.fillStyle = "#00ff00"
-        ctx.fillRect(-powerUp.radius / 3, -powerUp.radius, powerUp.radius / 1.5, powerUp.radius * 2)
-        ctx.fillRect(-powerUp.radius, -powerUp.radius / 3, powerUp.radius * 2, powerUp.radius / 1.5)
-      } else if (powerUp.type === "speedBoost") {
-        // Lightning bolt
-        ctx.fillStyle = "#ff00ff"
-        ctx.beginPath()
-        ctx.moveTo(-powerUp.radius / 2, -powerUp.radius)
-        ctx.lineTo(powerUp.radius / 2, 0)
-        ctx.lineTo(0, 0)
-        ctx.lineTo(powerUp.radius / 2, powerUp.radius)
-        ctx.lineTo(-powerUp.radius / 2, 0)
-        ctx.lineTo(0, 0)
-        ctx.closePath()
-        ctx.fill()
-      } else if (powerUp.type === "charge") {
-        ctx.fillStyle = "#ff4400"
-        ctx.strokeStyle = "#ffaa00"
-        ctx.lineWidth = 2
-        // Draw forward arrow
-        ctx.beginPath()
-        ctx.moveTo(-powerUp.radius, 0)
-        ctx.lineTo(powerUp.radius, 0)
-        ctx.lineTo(powerUp.radius - 6, -6)
-        ctx.moveTo(powerUp.radius, 0)
-        ctx.lineTo(powerUp.radius - 6, 6)
-        ctx.stroke()
-        // Draw star burst
-        for (let i = 0; i < 4; i++) {
-          const angle = (i * Math.PI) / 2
-          ctx.beginPath()
-          ctx.moveTo(Math.cos(angle) * 4, Math.sin(angle) * 4)
-          ctx.lineTo(Math.cos(angle) * powerUp.radius, Math.sin(angle) * powerUp.radius)
-          ctx.stroke()
-        }
-      } else {
-        // Egg for weapons
-        ctx.fillStyle = ctx.shadowColor
-        ctx.beginPath()
-        ctx.ellipse(0, 0, powerUp.radius * 0.7, powerUp.radius, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "white"
-        ctx.lineWidth = 2
-        ctx.stroke()
-      }
-
-      ctx.restore()
-    })
     // Draw UI
     ctx.shadowBlur = 0
 
