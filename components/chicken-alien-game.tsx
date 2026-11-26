@@ -20,13 +20,11 @@ import {
   spawnEnemies as spawnEnemiesFromModule,
   updateEnemies as updateEnemiesFromModule,
 } from "@/lib/game/enemies"
-
 import {
   shoot as shootFromModule,
   updateProjectiles as updateProjectilesFromModule,
   drawProjectile as drawProjectileFromModule,
 } from "@/lib/game/projectiles"
-
 import {
   spawnPowerUp as spawnPowerUpFromModule,
   spawnWeaponPowerUp as spawnWeaponPowerUpFromModule,
@@ -34,7 +32,7 @@ import {
   drawPowerUp as drawPowerUpFromModule,
   drawPowerUpDetailed as drawPowerUpDetailedFromModule,
 } from "@/lib/game/powerups"
-
+import { drawHud as drawHudFromModule, drawBossBar as drawBossBarFromModule } from "@/lib/game/ui"
 
 import type {
   GameObject,
@@ -53,28 +51,8 @@ import type {
 } from "@/lib/game/types"
 import { DIFFICULTY_SCALING, ALIEN_COLORS } from "@/lib/game/constants"
 
-
-function getBossDisplayHP(boss: Boss): { current: number; max: number } {
-  if (boss.type === "theHive") {
-    if (boss.hivePhase === 2 && boss.hiveLordA && boss.hiveLordB) {
-      return {
-        current: boss.hiveLordA.health + boss.hiveLordB.health,
-        max: 600,
-      }
-    }
-    if (boss.hivePhase === 3 && boss.hiveSpawns) {
-      return {
-        current: boss.hiveSpawns.reduce((sum, s) => sum + s.health, 0),
-        max: 400,
-      }
-    }
-    if (boss.hiveFinalWave) {
-      
-      return { current: 0, max: 1 }
-    }
-  }
-  return { current: boss.health, max: boss.maxHealth }
-}
+// Game loop type (defined outside component)
+type GameLoopFn = ((currentTime: number) => void) & { lastTime?: number }
 
 export function ChickenAlienGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -86,7 +64,7 @@ export function ChickenAlienGame() {
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [finalWave, setFinalWave] = useState(0)
-    const soundEnabledRef = useRef(soundEnabled)
+  const soundEnabledRef = useRef(soundEnabled)
 
   useEffect(() => {
     soundEnabledRef.current = soundEnabled
@@ -110,7 +88,6 @@ export function ChickenAlienGame() {
   const particlesRef = useRef<Particle[]>([])
   const floatingTextsRef = useRef<FloatingText[]>([])
   const bossRef = useRef<Boss | null>(null)
-  // Added kill count tracking
   const killCountRef = useRef(0)
   const scoreRef = useRef(0)
   const waveRef = useRef(1)
@@ -124,21 +101,23 @@ export function ChickenAlienGame() {
   const gameTimeRef = useRef(0)
   const animationIdRef = useRef<number | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
+  const gameLoopRef = useRef<GameLoopFn | null>(null)
+
   const getAlienColor = (type: EnemyType): string => {
     return ALIEN_COLORS[type] ?? "#00ff00"
   }
 
+  const audioSystem = useMemo(
+    () =>
+      createAudioSystem({
+        audioContextRef,
+        isEnabledRef: soundEnabledRef,
+      }),
+    [audioContextRef, soundEnabledRef],
+  )
 
-      const audioSystem = useMemo(
-  () =>
-    createAudioSystem({
-      audioContextRef,
-      isEnabledRef: soundEnabledRef,
-    }),
-  [audioContextRef, soundEnabledRef],
-)
-  // Game context (abstractions) 
-   const gameContext = useMemo(() => {
+  // Game context (abstractions)
+  const gameContext = useMemo(() => {
     const projectiles = createProjectileSpawner(projectilesRef)
     const enemies = createEnemySpawner(
       enemiesRef,
@@ -149,11 +128,6 @@ export function ChickenAlienGame() {
     const particles = createParticleSpawner(particlesRef)
     const floatingTexts = createFloatingTextSpawner(floatingTextsRef)
     const screenShake = createScreenShake(screenShakeRef)
-
-
-    
-   
-    
     const ui = createUIController({
       setGameState,
       setScore,
@@ -170,7 +144,7 @@ export function ChickenAlienGame() {
       particles,
       floatingTexts,
       screenShake,
-      audio : audioSystem,
+      audio: audioSystem,
       ui,
     }
   }, [
@@ -191,7 +165,6 @@ export function ChickenAlienGame() {
 
   // Effect 2: Resize canvas to fill container (with max size + centering)
   useEffect(() => {
-    
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -200,7 +173,6 @@ export function ChickenAlienGame() {
       if (!parent) return
       const rect = parent.getBoundingClientRect()
 
-      // Cap at 1200x800 for gameplay balance
       const maxW = 1200
       const maxH = 800
       const aspect = maxW / maxH
@@ -208,7 +180,6 @@ export function ChickenAlienGame() {
       let w = rect.width
       let h = rect.height
 
-      // Fit within aspect ratio
       if (w / h > aspect) {
         w = h * aspect
       } else {
@@ -223,7 +194,6 @@ export function ChickenAlienGame() {
       canvas.style.left = `${(rect.width - w) / 2}px`
       canvas.style.top = `${(rect.height - h) / 2}px`
 
-      // Keep player inside new bounds
       const player = playerRef.current
       if (player) {
         player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
@@ -236,32 +206,29 @@ export function ChickenAlienGame() {
     return () => window.removeEventListener("resize", resizeCanvas)
   }, [])
 
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!joystickActive && gameState === "playing") {
+      e.preventDefault()
+      const touch = e.touches[0]
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const scaleX = canvas.width / rect.width
+      const scaleY = canvas.height / rect.height
+      mouseRef.current.x = (touch.clientX - rect.left) * scaleX
+      mouseRef.current.y = (touch.clientY - rect.top) * scaleY
+    }
+  }
 
-
-const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-  if (!joystickActive && gameState === "playing") {
-    e.preventDefault()
-    const touch = e.touches[0]
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
-    mouseRef.current.x = (touch.clientX - rect.left) * scaleX
-    mouseRef.current.y = (touch.clientY - rect.top) * scaleY
+    mouseRef.current.x = (e.clientX - rect.left) * scaleX
+    mouseRef.current.y = (e.clientY - rect.top) * scaleY
   }
-}
-const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-  const canvas = canvasRef.current
-  if (!canvas) return
-  const rect = canvas.getBoundingClientRect()
-  const scaleX = canvas.width / rect.width
-  const scaleY = canvas.height / rect.height
-  mouseRef.current.x = (e.clientX - rect.left) * scaleX
-  mouseRef.current.y = (e.clientY - rect.top) * scaleY
-}
-
-
 
   const handleMouseDown = () => {
     mouseRef.current.down = true
@@ -271,25 +238,27 @@ const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     mouseRef.current.down = false
   }
 
+  // Audio system 
+  const initAudio = () => audioSystem.init()
 
-  // Initialize audio context
- // Audio system (replaces all the old sound functions)
-const initAudio = () => audioSystem.init()
-
-const playSound = (freq: number, dur: number, 
-  type?: OscillatorWaveType, gainValue?: number, 
-  startFreq?: number, endFreq?: number) => {
-  // Legacy signature — map to audioSystem.play
-  audioSystem.play(freq, dur, type)
-}
-const shootSound = () => audioSystem.shootSound()
-const eggSplashSound = () => audioSystem.eggSplashSound()
-const enemyDeadSound = () => audioSystem.enemyDeadSound()
-const chickenHitSound = () => audioSystem.chickenHitSound()
-const chickenDeathSound = () => audioSystem.chickenDeathSound()
-const powerUpSound = () => audioSystem.powerUpSound()
-const chargeSound = () => audioSystem.chargeSound()
-const stunSound = () => audioSystem.stunSound()
+  const playSound = (
+    freq: number,
+    dur: number,
+    type?: OscillatorWaveType,
+    gainValue?: number,
+    startFreq?: number,
+    endFreq?: number,
+  ) => {
+    audioSystem.play(freq, dur, type)
+  }
+  const shootSound = () => audioSystem.shootSound()
+  const eggSplashSound = () => audioSystem.eggSplashSound()
+  const enemyDeadSound = () => audioSystem.enemyDeadSound()
+  const chickenHitSound = () => audioSystem.chickenHitSound()
+  const chickenDeathSound = () => audioSystem.chickenDeathSound()
+  const powerUpSound = () => audioSystem.powerUpSound()
+  const chargeSound = () => audioSystem.chargeSound()
+  const stunSound = () => audioSystem.stunSound()
 
   // Initialize game
   const initGame = () => {
@@ -312,8 +281,8 @@ const stunSound = () => audioSystem.stunSound()
       stunCooldown: 0,
       isCharging: false,
       chargeDistance: 0,
-      chargeDirection: { x: 0, y: 0 },  
-      chargeReady: false,                
+      chargeDirection: { x: 0, y: 0 },
+      chargeReady: false,
       invincibleTime: 0,
     }
     enemiesRef.current = []
@@ -333,14 +302,14 @@ const stunSound = () => audioSystem.stunSound()
     setScore(0)
   }
 
-  // Start game
+  // Start game (uses gameLoopRef to avoid TDZ)
   const startGame = () => {
     initAudio()
     initGame()
     gameStateRef.current = "playing"
     setGameState("playing")
-    if (animationIdRef.current === null) {
-      gameLoop(performance.now()) // Pass initial time to gameLoop
+    if (animationIdRef.current === null && gameLoopRef.current) {
+      animationIdRef.current = requestAnimationFrame(gameLoopRef.current)
     }
   }
 
@@ -349,24 +318,20 @@ const stunSound = () => audioSystem.stunSound()
     startGame()
   }
 
-
   // Spawn power-up
   const spawnPowerUp = (canvas: HTMLCanvasElement) => {
-  spawnPowerUpFromModule(canvas, (powerUp) => powerUpsRef.current.push(powerUp))
-}
-
+    spawnPowerUpFromModule(canvas, (powerUp) => powerUpsRef.current.push(powerUp))
+  }
 
   // Spawn weapon power-up from flying saucer
-
   const spawnWeaponPowerUp = (x: number, y: number) => {
-  spawnWeaponPowerUpFromModule(x, y, (powerUp) => powerUpsRef.current.push(powerUp))
-}
+    spawnWeaponPowerUpFromModule(x, y, (powerUp) => powerUpsRef.current.push(powerUp))
+  }
 
   // Spawn flying saucers
-
   const spawnFlyingSaucer = (canvas: HTMLCanvasElement) => {
-    const side = Math.random() < 0.5 ? 0 : 1 // Left or right
-    const y = Math.random() * (canvas.height * 0.6) + canvas.height * 0.1 // Top 70% of screen
+    const side = Math.random() < 0.5 ? 0 : 1
+    const y = Math.random() * (canvas.height * 0.6) + canvas.height * 0.1
 
     flyingSaucersRef.current.push({
       x: side === 0 ? -30 : canvas.width + 30,
@@ -378,32 +343,33 @@ const stunSound = () => audioSystem.stunSound()
       bobOffset: Math.random() * Math.PI * 2,
     })
   }
-const spawnBoss = (canvas: HTMLCanvasElement) => {
-  const boss = spawnBossFromRegistry({
-    canvas,
-    lastBossWave: lastBossWaveRef.current,
-    playSound: (freq, dur, type) => playSound(freq, dur, type ?? "sine"),
-  })
 
-  if (boss) {
-    bossRef.current = boss
+  const spawnBoss = (canvas: HTMLCanvasElement) => {
+    const boss = spawnBossFromRegistry({
+      canvas,
+      lastBossWave: lastBossWaveRef.current,
+      playSound: (freq, dur, type) => playSound(freq, dur, type ?? "sine"),
+    })
+
+    if (boss) {
+      bossRef.current = boss
+    }
   }
-}
 
   // Shoot projectile
- const shoot = (canvas: HTMLCanvasElement, angle?: number) => {
-  const player = playerRef.current
-  if (!player) return
+  const shoot = (canvas: HTMLCanvasElement, angle?: number) => {
+    const player = playerRef.current
+    if (!player) return
 
-  shootFromModule({
-    player,
-    angle,
-    mouseX: mouseRef.current.x,
-    mouseY: mouseRef.current.y,
-    pushProjectile: (proj) => projectilesRef.current.push(proj),
-    playSound,
-  })
-}
+    shootFromModule({
+      player,
+      angle,
+      mouseX: mouseRef.current.x,
+      mouseY: mouseRef.current.y,
+      pushProjectile: (proj) => projectilesRef.current.push(proj),
+      playSound,
+    })
+  }
 
   // Create particles
   const createParticles = (x: number, y: number, color: string) => {
@@ -425,7 +391,6 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
     screenShakeRef.current = Math.max(screenShakeRef.current, intensity)
   }
 
-
   const addFloatingText = (x: number, y: number, text: string, color: string, size = 20) => {
     floatingTextsRef.current.push({
       x,
@@ -433,40 +398,38 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
       text,
       color,
       life: 60,
-      fontSize: size, // Use fontSize
-      velocity: { x: 0, y: -1 }, // Initial upward velocity
+      fontSize: size,
+      velocity: { x: 0, y: -1 },
     })
   }
-    // Effect 3: Keyboard listeners
+
+  // Effect 3: Keyboard listeners
   useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase()
       keysRef.current.add(key)
 
-      // ─── Q = Charge ability ───
+      // Q - Charge ability
+      
       if (key === "q" && gameStateRef.current === "playing") {
         const player = playerRef.current
         if (player && !player.isCharging && player.chargeCooldown <= 0) {
-          // Determine charge direction
           let dirX = 0
           let dirY = 0
 
-          // Priority 1: movement keys
           if (keysRef.current.has("w") || keysRef.current.has("arrowup")) dirY = -1
           if (keysRef.current.has("s") || keysRef.current.has("arrowdown")) dirY = 1
           if (keysRef.current.has("a") || keysRef.current.has("arrowleft")) dirX = -1
           if (keysRef.current.has("d") || keysRef.current.has("arrowright")) dirX = 1
 
-          // Priority 2: aim toward mouse if no movement keys
           if (dirX === 0 && dirY === 0) {
             const angleToMouse = Math.atan2(
               mouseRef.current.y - player.y,
-              mouseRef.current.x - player.x
+              mouseRef.current.x - player.x,
             )
             dirX = Math.cos(angleToMouse)
             dirY = Math.sin(angleToMouse)
           } else {
-            // Normalize diagonal
             const len = Math.sqrt(dirX * dirX + dirY * dirY)
             dirX /= len
             dirY /= len
@@ -501,16 +464,11 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
     }
   }, [])
 
- 
-
   // Update game state
   const update = (canvas: HTMLCanvasElement, deltaTime: number) => {
     const player = playerRef.current
     if (!player) return
 
-    // Keep simulation speed stable even when a frame stalls. Enemy motion is
-    // authored per 60 FPS frame, so scale it by the actual frame duration and
-    // cap the scale to prevent a long frame from becoming a teleport.
     const frameScale = Math.min(Math.max(deltaTime, 0) / (1000 / 60), 1.5)
     gameTimeRef.current += Math.min(deltaTime, 100)
 
@@ -531,34 +489,33 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
     }
 
     // Update player movement
-updatePlayerFromModule({
-  player,
-  keys: keysRef.current,
-  mouse: mouseRef.current,
-  canvas,
-  isMobile,
-  joystickActive,
-  joystickPos,
-  shootButtonPressed,
-  deltaTime,
-  shoot: () => shoot(canvas),
-  onCharge: () => {
-    chargeSound()
-    addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
-    addScreenShake(10)
-  },
-  onStun: () => {
-    stunSound()
-    player.stunCooldown = 10000
-    addFloatingText(player.x, player.y - 40, "CACA-DOO!", "#ffff00", 24)
-    addScreenShake(8)
-    enemiesRef.current.forEach((enemy) => {
-      enemy.stunned = true
-      enemy.stunnedTime = 3000
+    updatePlayerFromModule({
+      player,
+      keys: keysRef.current,
+      mouse: mouseRef.current,
+      canvas,
+      isMobile,
+      joystickActive,
+      joystickPos,
+      shootButtonPressed,
+      deltaTime,
+      shoot: () => shoot(canvas),
+      onCharge: () => {
+        chargeSound()
+        addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
+        addScreenShake(10)
+      },
+      onStun: () => {
+        stunSound()
+        player.stunCooldown = 10000
+        addFloatingText(player.x, player.y - 40, "CACA-DOO!", "#ffff00", 24)
+        addScreenShake(8)
+        enemiesRef.current.forEach((enemy) => {
+          enemy.stunned = true
+          enemy.stunnedTime = 3000
+        })
+      },
     })
-  },
-})
-
 
     // Spawn boss
     if (waveRef.current - lastBossWaveRef.current >= 5 && !bossRef.current) {
@@ -567,20 +524,21 @@ updatePlayerFromModule({
     }
 
     // Spawn enemies (disabled during boss fight) with dynamic interval
- if (!bossRef.current) {
-  spawnTimerRef.current += deltaTime
-  if (spawnTimerRef.current > currentSpawnInterval) {
-    spawnEnemiesFromModule({
-      canvas,
-      wave: waveRef.current,
-      timeInSeconds,
-      existingEnemyCount: enemiesRef.current.length,
-      pushEnemy: (enemy) => enemiesRef.current.push(enemy),
-    })
-    spawnTimerRef.current = 0
-    waveRef.current++
-  }
-}
+    if (!bossRef.current) {
+      spawnTimerRef.current += deltaTime
+      if (spawnTimerRef.current > currentSpawnInterval) {
+        spawnEnemiesFromModule({
+          canvas,
+          wave: waveRef.current,
+          timeInSeconds,
+          existingEnemyCount: enemiesRef.current.length,
+          pushEnemy: (enemy) => enemiesRef.current.push(enemy),
+        })
+        spawnTimerRef.current = 0
+        waveRef.current++
+      }
+    }
+
     const powerUpInterval =
       timeInSeconds < DIFFICULTY_SCALING.POWER_UP_TRANSITION_TIME
         ? DIFFICULTY_SCALING.POWER_UP_EARLY_INTERVAL
@@ -599,8 +557,7 @@ updatePlayerFromModule({
       saucerSpawnTimerRef.current = 0
     }
 
-
-        const boss = bossRef.current
+    const boss = bossRef.current
     if (boss) {
       // Helper to avoid repeating 20 lines per case
       const runBossUpdate = (type: BossType) => {
@@ -642,9 +599,7 @@ updatePlayerFromModule({
         // Rewards on death (unless boss already handled it via killBoss)
         if (!bossRef.current) {
           const rewardScore =
-            type === "omegaPrime" ? 2000 :
-            type === "theHive" ? 1000 :
-            500
+            type === "omegaPrime" ? 2000 : type === "theHive" ? 1000 : 500
           const rewardPowerUps =
             type === "omegaPrime" || type === "theHive" ? 5 : 3
 
@@ -720,26 +675,22 @@ updatePlayerFromModule({
           runBossUpdate("omegaPrime")
           break
       }
-    
 
       // Keep boss in bounds
       boss.x = Math.max(boss.radius, Math.min(canvas.width - boss.radius, boss.x))
       boss.y = Math.max(boss.radius, Math.min(canvas.height - boss.radius, boss.y))
 
-            // UNIVERSAL BOSS CONTACT DAMAGE 
+      // UNIVERSAL BOSS CONTACT DAMAGE
       {
         const dxp = player.x - boss.x
         const dyp = player.y - boss.y
         const distp = Math.sqrt(dxp * dxp + dyp * dyp)
-        const contactDist = player.radius + boss.radius * 0.85  // slightly smaller than visual
+        const contactDist = player.radius + boss.radius * 0.85
 
         if (distp < contactDist) {
-          // Cooldown per boss (to avoid 60fps drain)
-          if (boss.phase === 1 && !boss.spawnTimer) boss.spawnTimer = 0  // ensure timer
+          if (boss.phase === 1 && !boss.spawnTimer) boss.spawnTimer = 0
 
-          // Use invincibleTime on player to throttle
           if (player.invincibleTime <= 0 && !player.shield) {
-            // Different damage per boss type
             let contactDamage = 15
             switch (boss.type) {
               case "alienMouse":
@@ -757,9 +708,9 @@ updatePlayerFromModule({
               case "abductor":
                 contactDamage = 15
                 break
-          case "queenXenoHen":
-  contactDamage = boss.queenEnraged ? 20 : 15
-  break
+              case "queenXenoHen":
+                contactDamage = boss.queenEnraged ? 20 : 15
+                break
               case "devourer":
                 contactDamage = 25
                 break
@@ -787,7 +738,7 @@ updatePlayerFromModule({
             }
 
             player.health -= contactDamage
-            player.invincibleTime = 60  // ~1 second invincibility
+            player.invincibleTime = 60
             chickenHitSound()
             addScreenShake(10)
             addFloatingText(player.x, player.y - 30, `-${contactDamage}`, "#ff0000", 18)
@@ -806,40 +757,37 @@ updatePlayerFromModule({
     }
 
     // Update enemies
-enemiesRef.current = updateEnemiesFromModule({
-  enemies: enemiesRef.current,
-  player,
-  canvas,
-  deltaTime,
-  frameScale,
-  createParticles: (x, y, color) => createParticles(x, y, color),
-  onEnemyContact: (enemy, damage) => {
-    if (player.invincibleTime <= 0 && !player.shield) {
-      player.health -= damage
-      player.invincibleTime = 60
-      chickenHitSound()
-      addScreenShake(8)
-      addFloatingText(player.x, player.y - 30, `-${damage}`, "#ff0000", 18)
-      if (player.health <= 0) {
-        chickenDeathSound()
-        gameStateRef.current = "gameOver"
-        setGameState("gameOver")
-        setFinalScore(scoreRef.current)
-        setFinalKillCount(killCountRef.current)
-        setFinalWave(waveRef.current)
-      }
-    }
-  },
-})
+    enemiesRef.current = updateEnemiesFromModule({
+      enemies: enemiesRef.current,
+      player,
+      canvas,
+      deltaTime,
+      frameScale,
+      createParticles: (x, y, color) => createParticles(x, y, color),
+      onEnemyContact: (enemy, damage) => {
+        if (player.invincibleTime <= 0 && !player.shield) {
+          player.health -= damage
+          player.invincibleTime = 60
+          chickenHitSound()
+          addScreenShake(8)
+          addFloatingText(player.x, player.y - 30, `-${damage}`, "#ff0000", 18)
+          if (player.health <= 0) {
+            chickenDeathSound()
+            gameStateRef.current = "gameOver"
+            setGameState("gameOver")
+            setFinalScore(scoreRef.current)
+            setFinalKillCount(killCountRef.current)
+            setFinalWave(waveRef.current)
+          }
+        }
+      },
+    })
 
     flyingSaucersRef.current = flyingSaucersRef.current.filter((saucer) => {
-      // Move horizontally
       saucer.x += saucer.speed * saucer.direction
-      // Bob up and down
       saucer.bobOffset += 0.05
       saucer.y += Math.sin(saucer.bobOffset) * 0.5
 
-      // Check collision with projectiles
       for (let i = 0; i < projectilesRef.current.length; i++) {
         const proj = projectilesRef.current[i]
         const dx = proj.x - saucer.x
@@ -848,7 +796,7 @@ enemiesRef.current = updateEnemiesFromModule({
 
         if (dist < proj.radius + saucer.radius) {
           saucer.health -= proj.damage
-          eggSplashSound() // Play egg splash sound when hitting saucer
+          eggSplashSound()
 
           if (!proj.piercing) {
             projectilesRef.current.splice(i, 1)
@@ -856,7 +804,7 @@ enemiesRef.current = updateEnemiesFromModule({
           }
 
           if (saucer.health <= 0) {
-            enemyDeadSound() // Play enemy death sound for saucer
+            enemyDeadSound()
             scoreRef.current += 50
             setScore(scoreRef.current)
             createParticles(saucer.x, saucer.y, "#00ffff")
@@ -868,7 +816,6 @@ enemiesRef.current = updateEnemiesFromModule({
         }
       }
 
-      // Remove if off screen
       if (saucer.x < -50 || saucer.x > canvas.width + 50) {
         return false
       }
@@ -886,227 +833,226 @@ enemiesRef.current = updateEnemiesFromModule({
       setFinalWave(waveRef.current)
     }
 
-        // Update projectiles and check enemy collision
-projectilesRef.current = updateProjectilesFromModule({
-  projectiles: projectilesRef.current,
-  player,
-  canvas,
-  deltaTime,
-  bossRef,
-  enemiesRef,
+    // Update projectiles and check enemy collision
+    projectilesRef.current = updateProjectilesFromModule({
+      projectiles: projectilesRef.current,
+      player,
+      canvas,
+      deltaTime,
+      bossRef,
+      enemiesRef,
 
-  onLeviathanWaveHit: (proj, player) => {
-    player.health -= 50
-    player.invincibleTime = 120
-    chickenHitSound()
-    addScreenShake(40)
-    addFloatingText(player.x, player.y - 40, "-50", "#ff0000", 32)
+      onLeviathanWaveHit: (proj, player) => {
+        player.health -= 50
+        player.invincibleTime = 120
+        chickenHitSound()
+        addScreenShake(40)
+        addFloatingText(player.x, player.y - 40, "-50", "#ff0000", 32)
 
-    const waveDx = proj.x - player.x
-    const waveDy = proj.y - player.y
-    const pushAngle = Math.atan2(waveDy, waveDx)
-    const mapDiagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
-    const kickDistance = mapDiagonal * 1.2
+        const waveDx = proj.x - player.x
+        const waveDy = proj.y - player.y
+        const pushAngle = Math.atan2(waveDy, waveDx)
+        const mapDiagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
+        const kickDistance = mapDiagonal * 1.2
 
-    player.x += Math.cos(pushAngle) * kickDistance
-    player.y += Math.sin(pushAngle) * kickDistance
-    player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
-    player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
+        player.x += Math.cos(pushAngle) * kickDistance
+        player.y += Math.sin(pushAngle) * kickDistance
+        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
+        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
 
-    createParticles(player.x, player.y, "#a855f7")
-    playSound(150, 0.4, "sawtooth")
-    playSound(80, 0.6, "triangle")
+        createParticles(player.x, player.y, "#a855f7")
+        playSound(150, 0.4, "sawtooth")
+        playSound(80, 0.6, "triangle")
 
-    if (player.health <= 0) {
-      chickenDeathSound()
-      gameStateRef.current = "gameOver"
-      setGameState("gameOver")
-      setFinalScore(scoreRef.current)
-      setFinalKillCount(killCountRef.current)
-      setFinalWave(waveRef.current)
-    }
-  },
-
-  onHiveLordHit: () => {},
-  onHiveSpawnHit: () => {},
-
-  onEnemyProjectileHitPlayer: (proj, player) => {
-    player.health -= proj.damage
-    player.invincibleTime = 30
-    chickenHitSound()
-    addScreenShake(6)
-    addFloatingText(player.x, player.y - 30, `-${proj.damage}`, "#ff4444", 18)
-    createParticles(proj.x, proj.y, proj.color || "#28f0ff")
-
-    if (player.health <= 0) {
-      chickenDeathSound()
-      gameStateRef.current = "gameOver"
-      setGameState("gameOver")
-      setFinalScore(scoreRef.current)
-      setFinalKillCount(killCountRef.current)
-      setFinalWave(waveRef.current)
-    }
-  },
-
-  onBossHit: (proj, boss) => {
-    if (boss.isArmored && boss.armor !== undefined && boss.armor > 0) {
-      boss.armor -= proj.damage
-      createParticles(proj.x, proj.y, "#94a3b8")
-
-      if (boss.armor <= 0) {
-        boss.armor = 0
-        boss.isArmored = false
-        addFloatingText(boss.x, boss.y - 50, "ARMOR BROKEN!", "#fbbf24", 28)
-        addScreenShake(20)
-        playSound(150, 0.5, "sawtooth")
-      }
-    } else {
-      boss.health -= proj.damage
-    }
-
-    eggSplashSound()
-    createParticles(boss.x, boss.y, "#ff4444")
-    addFloatingText(boss.x, boss.y - 30, `-${proj.damage}`, "#ff9999", 18)
-    addScreenShake(4)
-
-    if (proj.explosive) {
-      createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
-      playSound(150, 0.2, "sawtooth")
-      addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
-    }
-
-    if (boss.health <= 0) {
-      enemyDeadSound()
-      scoreRef.current += 500
-      setScore(scoreRef.current)
-      killCountRef.current += 1
-      setKillCount(killCountRef.current)
-      createParticles(boss.x, boss.y, "#ff0000")
-      addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-      addScreenShake(15)
-      for (let p = 0; p < 3; p++) {
-        spawnWeaponPowerUp(boss.x + (Math.random() - 0.5) * 80, boss.y + (Math.random() - 0.5) * 80)
-      }
-      bossRef.current = null
-      lastBossWaveRef.current = waveRef.current
-    }
-  },
-
-  onEnemyHit: (proj, enemy) => {
-    const damage = proj.damage
-
-    enemy.health -= damage
-    enemy.hitFlash = 5
-
-    eggSplashSound()
-    createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
-    addFloatingText(enemy.x, enemy.y - 20, `-${damage}`, "#ff9999", 16)
-
-    if (!proj.piercing) {
-      proj.dead = true
-    }
-
-    if (enemy.health <= 0) {
-      enemyDeadSound()
-      scoreRef.current += 10
-      setScore(scoreRef.current)
-      killCountRef.current += 1
-      setKillCount(killCountRef.current)
-      createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
-      addFloatingText(enemy.x, enemy.y - 30, "+10", "#ffff00", 20)
-      addScreenShake(3)
-
-      if (enemy.type === "splitter" && enemy.radius > 8) {
-        for (let j = 0; j < 2; j++) {
-          const angle = (Math.PI / 3) * j + (Math.random() * Math.PI) / 6
-          enemiesRef.current.push({
-            x: enemy.x + Math.cos(angle) * 20,
-            y: enemy.y + Math.sin(angle) * 20,
-            radius: 8,
-            speed: enemy.speed * 1.2,
-            health: 1,
-            maxHealth: 1,
-            groupId: enemy.groupId,
-            type: "grunt",
-            alienType: "grunt",
-            color: getAlienColor("grunt"),
-          })
+        if (player.health <= 0) {
+          chickenDeathSound()
+          gameStateRef.current = "gameOver"
+          setGameState("gameOver")
+          setFinalScore(scoreRef.current)
+          setFinalKillCount(killCountRef.current)
+          setFinalWave(waveRef.current)
         }
-      }
+      },
 
-      const index = enemiesRef.current.indexOf(enemy)
-      if (index > -1) {
-        enemiesRef.current.splice(index, 1)
-      }
-    }
-  },
+      onHiveLordHit: () => {},
+      onHiveSpawnHit: () => {},
 
-  createParticles,
-  addFloatingText,
-  addScreenShake,
-  playSound,
-  eggSplashSound,
-  enemyDeadSound,
-  chickenHitSound,
-  chickenDeathSound,
-  setGameOver: () => {
-    gameStateRef.current = "gameOver"
-    setGameState("gameOver")
-  },
-  spawnWeaponPowerUp,
-  getAlienColor,
-  scoreRef,
-  setScore,
-  killCountRef,
-  setKillCount,
-})
+      onEnemyProjectileHitPlayer: (proj, player) => {
+        player.health -= proj.damage
+        player.invincibleTime = 30
+        chickenHitSound()
+        addScreenShake(6)
+        addFloatingText(player.x, player.y - 30, `-${proj.damage}`, "#ff4444", 18)
+        createParticles(proj.x, proj.y, proj.color || "#28f0ff")
 
+        if (player.health <= 0) {
+          chickenDeathSound()
+          gameStateRef.current = "gameOver"
+          setGameState("gameOver")
+          setFinalScore(scoreRef.current)
+          setFinalKillCount(killCountRef.current)
+          setFinalWave(waveRef.current)
+        }
+      },
+
+      onBossHit: (proj, boss) => {
+        if (boss.isArmored && boss.armor !== undefined && boss.armor > 0) {
+          boss.armor -= proj.damage
+          createParticles(proj.x, proj.y, "#94a3b8")
+
+          if (boss.armor <= 0) {
+            boss.armor = 0
+            boss.isArmored = false
+            addFloatingText(boss.x, boss.y - 50, "ARMOR BROKEN!", "#fbbf24", 28)
+            addScreenShake(20)
+            playSound(150, 0.5, "sawtooth")
+          }
+        } else {
+          boss.health -= proj.damage
+        }
+
+        eggSplashSound()
+        createParticles(boss.x, boss.y, "#ff4444")
+        addFloatingText(boss.x, boss.y - 30, `-${proj.damage}`, "#ff9999", 18)
+        addScreenShake(4)
+
+        if (proj.explosive) {
+          createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+          playSound(150, 0.2, "sawtooth")
+          addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
+        }
+
+        if (boss.health <= 0) {
+          enemyDeadSound()
+          scoreRef.current += 500
+          setScore(scoreRef.current)
+          killCountRef.current += 1
+          setKillCount(killCountRef.current)
+          createParticles(boss.x, boss.y, "#ff0000")
+          addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+          addScreenShake(15)
+          for (let p = 0; p < 3; p++) {
+            spawnWeaponPowerUp(boss.x + (Math.random() - 0.5) * 80, boss.y + (Math.random() - 0.5) * 80)
+          }
+          bossRef.current = null
+          lastBossWaveRef.current = waveRef.current
+        }
+      },
+
+      onEnemyHit: (proj, enemy) => {
+        const damage = proj.damage
+
+        enemy.health -= damage
+        enemy.hitFlash = 5
+
+        eggSplashSound()
+        createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+        addFloatingText(enemy.x, enemy.y - 20, `-${damage}`, "#ff9999", 16)
+
+        if (!proj.piercing) {
+          proj.dead = true
+        }
+
+        if (enemy.health <= 0) {
+          enemyDeadSound()
+          scoreRef.current += 10
+          setScore(scoreRef.current)
+          killCountRef.current += 1
+          setKillCount(killCountRef.current)
+          createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
+          addFloatingText(enemy.x, enemy.y - 30, "+10", "#ffff00", 20)
+          addScreenShake(3)
+
+          if (enemy.type === "splitter" && enemy.radius > 8) {
+            for (let j = 0; j < 2; j++) {
+              const angle = (Math.PI / 3) * j + (Math.random() * Math.PI) / 6
+              enemiesRef.current.push({
+                x: enemy.x + Math.cos(angle) * 20,
+                y: enemy.y + Math.sin(angle) * 20,
+                radius: 8,
+                speed: enemy.speed * 1.2,
+                health: 1,
+                maxHealth: 1,
+                groupId: enemy.groupId,
+                type: "grunt",
+                alienType: "grunt",
+                color: getAlienColor("grunt"),
+              })
+            }
+          }
+
+          const index = enemiesRef.current.indexOf(enemy)
+          if (index > -1) {
+            enemiesRef.current.splice(index, 1)
+          }
+        }
+      },
+
+      createParticles,
+      addFloatingText,
+      addScreenShake,
+      playSound,
+      eggSplashSound,
+      enemyDeadSound,
+      chickenHitSound,
+      chickenDeathSound,
+      setGameOver: () => {
+        gameStateRef.current = "gameOver"
+        setGameState("gameOver")
+      },
+      spawnWeaponPowerUp,
+      getAlienColor,
+      scoreRef,
+      setScore,
+      killCountRef,
+      setKillCount,
+    })
 
     // Check collisions between player and power-ups
     powerUpsRef.current = updatePowerUpsFromModule({
-  powerUps: powerUpsRef.current,
-  player,
-  deltaTime,
-  onCollect: (powerUp) => {
-    powerUpSound()
+      powerUps: powerUpsRef.current,
+      player,
+      deltaTime,
+      onCollect: (powerUp) => {
+        powerUpSound()
 
-    switch (powerUp.type) {
-      case "doubleYolk":
-      case "scrambled":
-      case "hardBoiled":
-      case "explosive":
-      case "golden":
-        player.weaponType = powerUp.type
-        player.weaponTime = 15000
-        addFloatingText(player.x, player.y - 40, powerUp.type.toUpperCase(), "#ffaa00", 20)
-        break
+        switch (powerUp.type) {
+          case "doubleYolk":
+          case "scrambled":
+          case "hardBoiled":
+          case "explosive":
+          case "golden":
+            player.weaponType = powerUp.type
+            player.weaponTime = 15000
+            addFloatingText(player.x, player.y - 40, powerUp.type.toUpperCase(), "#ffaa00", 20)
+            break
 
-      case "shield":
-        player.shield = true
-        player.shieldTime = 10000
-        addFloatingText(player.x, player.y - 40, "SHIELD!", "#00ffff", 20)
-        break
+          case "shield":
+            player.shield = true
+            player.shieldTime = 10000
+            addFloatingText(player.x, player.y - 40, "SHIELD!", "#00ffff", 20)
+            break
 
-      case "health":
-        player.health = Math.min(player.health + 30, player.maxHealth)
-        addFloatingText(player.x, player.y - 40, "+30 HP", "#00ff00", 20)
-        break
+          case "health":
+            player.health = Math.min(player.health + 30, player.maxHealth)
+            addFloatingText(player.x, player.y - 40, "+30 HP", "#00ff00", 20)
+            break
 
-      case "speedBoost":
-        player.speed = 8
-        setTimeout(() => {
-          if (playerRef.current) playerRef.current.speed = 5
-        }, 5000)
-        addFloatingText(player.x, player.y - 40, "SPEED UP!", "#ff00ff", 20)
-        break
+          case "speedBoost":
+            player.speed = 8
+            setTimeout(() => {
+              if (playerRef.current) playerRef.current.speed = 5
+            }, 5000)
+            addFloatingText(player.x, player.y - 40, "SPEED UP!", "#ff00ff", 20)
+            break
 
-      case "charge":
-        player.chargeCooldown = 0
-        addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
-        break
-    }
-  },
-})
+          case "charge":
+            player.chargeCooldown = 0
+            addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
+            break
+        }
+      },
+    })
 
     // Update particles
     particlesRef.current = particlesRef.current.filter((particle) => {
@@ -1118,7 +1064,6 @@ projectilesRef.current = updateProjectilesFromModule({
     })
 
     floatingTextsRef.current = floatingTextsRef.current.filter((text) => {
-      // Update floating text position based on velocity
       text.x += text.velocity.x
       text.y += text.velocity.y
       text.life--
@@ -1133,27 +1078,27 @@ projectilesRef.current = updateProjectilesFromModule({
   }
 
   // Draw game
-const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-  ctx.save()
-  ctx.translate(screenShakeXRef.current, screenShakeYRef.current)
+  const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+    ctx.save()
+    ctx.translate(screenShakeXRef.current, screenShakeYRef.current)
 
-  // Clear canvas with gradient background
-  const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
-  bgGradient.addColorStop(0, "#0a0a1a")
-  bgGradient.addColorStop(1, "#1a0a2a")
-  ctx.fillStyle = bgGradient
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
+    // Clear canvas with gradient background
+    const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
+    bgGradient.addColorStop(0, "#0a0a1a")
+    bgGradient.addColorStop(1, "#1a0a2a")
+    ctx.fillStyle = bgGradient
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const player = playerRef.current
-  if (!player) {
-    ctx.restore() 
-    return
-  }
+    const player = playerRef.current
+    if (!player) {
+      ctx.restore()
+      return
+    }
+
     particlesRef.current.forEach((particle) => {
       const alpha = particle.life / 30
       ctx.globalAlpha = alpha
 
-      // Glow effect
       ctx.shadowBlur = 10
       ctx.shadowColor = particle.color
 
@@ -1166,15 +1111,10 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     })
     ctx.globalAlpha = 1
 
-
-// powerUpsRef.current.forEach((powerUp) => {
-//   drawPowerUpFromModule(ctx, powerUp)
-// })
-
-    // Draw enemies with distinct silhouettes and animation loops.
+    // Draw enemies
     const animationTime = Date.now()
     enemiesRef.current.forEach((enemy) => {
-     drawAlienCreatureFromModule(ctx, enemy, animationTime)
+      drawAlienCreatureFromModule(ctx, enemy, animationTime)
       const bob = Math.sin(animationTime / 180 + enemy.x * 0.02) * enemy.radius * 0.08
 
       if (enemy.maxHealth > 3) {
@@ -1198,19 +1138,16 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     })
 
     flyingSaucersRef.current.forEach((saucer) => {
-      // Saucer body
       ctx.fillStyle = "#00ffff"
       ctx.beginPath()
       ctx.ellipse(saucer.x, saucer.y, saucer.radius, saucer.radius * 0.5, 0, 0, Math.PI * 2)
       ctx.fill()
 
-      // Saucer dome
       ctx.fillStyle = "#0099cc"
       ctx.beginPath()
       ctx.ellipse(saucer.x, saucer.y - 5, saucer.radius * 0.6, saucer.radius * 0.4, 0, 0, Math.PI * 2)
       ctx.fill()
 
-      // Saucer lights
       for (let i = 0; i < 5; i++) {
         const angle = (i / 5) * Math.PI * 2
         const x = saucer.x + Math.cos(angle) * saucer.radius * 0.7
@@ -1221,7 +1158,6 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
         ctx.fill()
       }
 
-      // Health indicator
       ctx.fillStyle = "#fff"
       ctx.font = "10px Arial"
       ctx.textAlign = "center"
@@ -1232,10 +1168,9 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     if (boss) {
       const bossTime = Date.now()
       const bossBob = Math.sin(bossTime / 260) * 4
-      //const bossBreath = 1 + Math.sin(bossTime / 340) * 0.045
-            const bossBreath = 1 
+      const bossBreath = 1
 
-     const bossPlayerRef = playerRef.current
+      const bossPlayerRef = playerRef.current
       const angleToPlayer = bossPlayerRef
         ? Math.atan2(bossPlayerRef.y - boss.y, bossPlayerRef.x - boss.x)
         : 0
@@ -1267,13 +1202,13 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
           bossColor = "#22c55e"
           break
         case "abductor":
-          bossColor = "#cc0000" // Dark red
+          bossColor = "#cc0000"
           break
         case "queenXenoHen":
-          bossColor = "#ff3333" // Bright red
+          bossColor = "#ff3333"
           break
         case "devourer":
-          bossColor = "#990000" // Deep red
+          bossColor = "#990000"
           break
       }
 
@@ -1289,11 +1224,6 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
       ctx.lineWidth = 3
       ctx.stroke()
 
-      // Type-specific visuals
-
-
-      
-
       // Start of boss drawing
       {
         const behavior = getBossBehavior(boss.type)
@@ -1306,339 +1236,21 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
       }
       // End of boss drawing
 
+      drawBossBarFromModule(ctx, canvas, boss)
 
-
-
-            // Armor bar (only if boss has armor)
-      if (boss.maxArmor !== undefined && boss.armor !== undefined) {
-        const armorBarWidth = canvas.width * 0.6
-        const armorBarHeight = 12
-        const armorBarX = (canvas.width - armorBarWidth) / 2
-        const armorBarY = canvas.height - 70
-        const armorPercent = boss.armor / boss.maxArmor
-
-        ctx.fillStyle = "#1e293b"
-        ctx.fillRect(armorBarX, armorBarY, armorBarWidth, armorBarHeight)
-        ctx.fillStyle = "#94a3b8"
-        ctx.fillRect(armorBarX, armorBarY, armorBarWidth * armorPercent, armorBarHeight)
-        ctx.strokeStyle = "#64748b"
-        ctx.lineWidth = 2
-        ctx.strokeRect(armorBarX, armorBarY, armorBarWidth, armorBarHeight)
-
-        ctx.fillStyle = "#fff"
-        ctx.font = "bold 12px Arial"
-        ctx.textAlign = "center"
-        ctx.fillText(`ARMOR: ${Math.ceil(boss.armor)}/${boss.maxArmor}`, canvas.width / 2, armorBarY - 5)
-      }
-
-       // Boss health bar (large and prominent)
-      const barWidth = canvas.width * 0.6
-      const barHeight = 20
-      const barX = (canvas.width - barWidth) / 2
-      const barY = canvas.height - 40
-      const { current: displayHP, max: displayMaxHP } = getBossDisplayHP(boss)
-      const healthPercent = displayHP / displayMaxHP
-
-      ctx.fillStyle = "#333"
-      ctx.fillRect(barX, barY, barWidth, barHeight)
-      ctx.fillStyle = healthPercent > 0.5 ? "#ff0000" : "#ff6600"
-      ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight)
-      ctx.strokeStyle = "#fff"
-      ctx.lineWidth = 2
-      ctx.strokeRect(barX, barY, barWidth, barHeight)
-
-          // Boss name and health text
-      ctx.fillStyle = "#fff"
-      ctx.font = "bold 16px Arial"
-      ctx.textAlign = "center"
-      const bossNames = {
-        alienMouse: "THE ALIEN MOUSE",
-        alienBumblebee: "THE ALIEN BUMBLEBEE",
-        alienOctopus: "THE ALIEN OCTOPUS",
-        alienMantis: "THE ALIEN MANTIS",
-        abductor: "THE ABDUCTOR",
-        queenXenoHen: "QUEEN XENOHEN",
-        devourer: "THE DEVOURER",
-        theButcher: "THE BUTCHER",
-        voidReaper: "VOID REAPER",
-        plagueBringer: "PLAGUE BRINGER",
-        ironTyrant: "IRON TYRANT",
-        voidLeviathan: "VOID LEVIATHAN",
-        theHive: "THE HIVE",
-        omegaPrime: "OMEGA PRIME",
-      }
-           ctx.fillText(`${bossNames[boss.type]} - ${Math.ceil(displayHP)}/${displayMaxHP}`, canvas.width / 2, barY - 10)
+      ctx.restore()
     }
 
-     projectilesRef.current.forEach((proj) => {
-    
-      
-
-        //  LEVIATHAN SHOCKWAVE (elliptical, C-shaped) 
-      if (proj.isLeviathanWave) {
-        const waveAge = proj.waveAge || 0
-        const waveMaxAge = proj.waveMaxAge || 1100
-        const waveAngle = proj.waveAngle || 0
-
-        const progress = Math.min(waveAge / waveMaxAge, 1)
-        const alpha = 1 - progress * 0.7  
-        const waveRadius = proj.radius * (1 + progress * 3.5)  
-
-        ctx.save()
-        ctx.translate(proj.x, proj.y)
-        ctx.rotate(waveAngle)
-
-        // Outer C-shaped arc
-        ctx.globalAlpha = alpha * 0.8
-        ctx.strokeStyle = proj.color || "#a855f7"
-        ctx.lineWidth = 6 * alpha + 2
-        ctx.shadowColor = proj.color || "#a855f7"
-        ctx.shadowBlur = 20
-
-        ctx.beginPath()
-        ctx.arc(0, 0, waveRadius, -Math.PI * 0.85, Math.PI * 0.85, false)  // wider arc
-        ctx.stroke()
-
-        // Inner bright arc
-        ctx.globalAlpha = alpha * 0.6
-        ctx.strokeStyle = "#e9d5ff"
-        ctx.lineWidth = 3 * alpha + 1
-        ctx.shadowBlur = 12
-
-        ctx.beginPath()
-        ctx.arc(0, 0, waveRadius * 0.85, -Math.PI * 0.75, Math.PI * 0.75, false)
-        ctx.stroke()
-
-        // Glow particles along arc
-        ctx.globalAlpha = alpha * 0.5
-
-               for (let i = 0; i < 10; i++) {
-          const a = -Math.PI * 0.8 + (i / 10) * Math.PI * 1.6
-
-          const px = Math.cos(a) * waveRadius
-          const py = Math.sin(a) * waveRadius
-
-          ctx.fillStyle = "#c084fc"
-          ctx.beginPath()
-          ctx.arc(px, py, 3, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
-        ctx.shadowBlur = 0
-        ctx.restore()
-        return
-      }
-
-      // VOID SLASH (curved, crescent-shaped)
-  if (proj.isVoidSlash) {
-    const angle = Math.atan2(proj.vy, proj.vx)
-    
-
-    ctx.save()
-    ctx.translate(proj.x, proj.y)
-    ctx.rotate(angle)
-
-    ctx.shadowColor = proj.color || "#c084fc"
-    ctx.shadowBlur = 15
-
-    ctx.strokeStyle = proj.color || "#c084fc"
-    ctx.lineWidth = 4
-    ctx.beginPath()
-    ctx.arc(0, 0, proj.radius, -Math.PI * 0.5, Math.PI * 0.5)
-    ctx.stroke()
-
-    ctx.strokeStyle = "#ffffff"
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.arc(0, 0, proj.radius * 0.6, -Math.PI * 0.4, Math.PI * 0.4)
-    ctx.stroke()
-
-    ctx.shadowBlur = 0
-    ctx.restore()
-    return
-  }
-
-  //  VOID ORB 
-  if (proj.isVoidOrb) {
-    ctx.save()
-    ctx.shadowColor = proj.color || "#7c3aed"
-    ctx.shadowBlur = 20
-
-    const orbGrad = ctx.createRadialGradient(
-      proj.x - proj.radius * 0.3,
-      proj.y - proj.radius * 0.3,
-      proj.radius * 0.1,
-      proj.x,
-      proj.y,
-      proj.radius * 1.2
-    )
-    orbGrad.addColorStop(0, "#ffffff")
-    orbGrad.addColorStop(0.3, proj.color || "#c084fc")
-    orbGrad.addColorStop(0.7, "#7c3aed")
-    orbGrad.addColorStop(1, "#1a0a2a")
-
-    ctx.fillStyle = orbGrad
-    ctx.beginPath()
-    ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.shadowBlur = 0
-
-    ctx.fillStyle = "#0a0a15"
-    ctx.beginPath()
-    ctx.arc(proj.x, proj.y, proj.radius * 0.4, 0, Math.PI * 2)
-    ctx.fill()
-
-    ctx.restore()
-    return
-  }
-        //  PLAGUE BALL (green explosive) 
-      if (proj.isEnemyProjectile && proj.color === "#84cc16" && proj.explosive) {
-        ctx.save()
-        ctx.shadowColor = "#84cc16"
-        ctx.shadowBlur = 25
-
-        const plagueGrad = ctx.createRadialGradient(
-          proj.x - proj.radius * 0.3,
-          proj.y - proj.radius * 0.3,
-          proj.radius * 0.1,
-          proj.x,
-          proj.y,
-          proj.radius * 1.3
-        )
-        plagueGrad.addColorStop(0, "#fef9c3")
-        plagueGrad.addColorStop(0.3, "#d4ff00")
-        plagueGrad.addColorStop(0.7, "#84cc16")
-        plagueGrad.addColorStop(1, "#3f6212")
-
-        ctx.fillStyle = plagueGrad
-        ctx.beginPath()
-        ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.shadowBlur = 0
-
-        // Dark core
-        ctx.fillStyle = "#1a2e05"
-        ctx.beginPath()
-        ctx.arc(proj.x, proj.y, proj.radius * 0.3, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Pulsing outline
-
-
-        const time = Date.now()
-        ctx.strokeStyle = `rgba(212, 255, 0, ${0.6 + Math.sin(time / 100) * 0.4})`
-        ctx.lineWidth = 2
-        ctx.stroke()
-
-        ctx.restore()
-        return
-      }
-
-  //  BIO-EGG (isEnemyProjectile) 
-  if (proj.isEnemyProjectile) {
-    ctx.save()
-    ctx.shadowColor = proj.color || "#28f0ff"
-    ctx.shadowBlur = 20
-
-    // Egg body
-    const eggGrad = ctx.createRadialGradient(
-      proj.x - proj.radius * 0.35,
-      proj.y - proj.radius * 0.4,
-      proj.radius * 0.1,
-      proj.x,
-      proj.y,
-      proj.radius * 1.3
-    )
-    eggGrad.addColorStop(0, "#fff2f2")
-    eggGrad.addColorStop(0.3, "#ff8b8b")
-    eggGrad.addColorStop(0.7, "#ed0a0a")
-    eggGrad.addColorStop(1, "#df0f0f")
-
-    ctx.fillStyle = eggGrad
-    ctx.beginPath()
-    ctx.ellipse(proj.x, proj.y, proj.radius, proj.radius * 1.3, 0, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.restore()
-
-    // Bright outline
-    ctx.strokeStyle = "#fdf908"
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.ellipse(proj.x, proj.y, proj.radius, proj.radius * 1.3, 0, 0, Math.PI * 2)
-    ctx.stroke()
-
-    // Crack detail
-    ctx.strokeStyle = "rgba(255, 246, 246, 0.7)"
-    ctx.lineWidth = 1.2
-    ctx.beginPath()
-    ctx.moveTo(proj.x - proj.radius * 0.35, proj.y - proj.radius * 0.4)
-    ctx.lineTo(proj.x - proj.radius * 0.05, proj.y)
-    ctx.lineTo(proj.x - proj.radius * 0.25, proj.y + proj.radius * 0.5)
-    ctx.stroke()
-
-    // Trailing glow
-    ctx.fillStyle = "rgba(221, 27, 27, 0.87)"
-    ctx.beginPath()
-    ctx.arc(
-      proj.x - proj.vx * 2,
-      proj.y - proj.vy * 2,
-      proj.radius * 0.9,
-      0, Math.PI * 2
-    )
-    ctx.fill()
-
-    return
-  }
-
-
-
-      //  PLAYER PROJECTILES (existing) 
-      if (proj.explosive) {
-        // Explosive egg (red-orange)
-        ctx.fillStyle = "#ff6600"
-        ctx.beginPath()
-        ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "#ff0000"
-        ctx.lineWidth = 1
-        ctx.stroke()
-      } else if (proj.piercing) {
-        // Hard-boiled egg (brown)
-        ctx.fillStyle = "#8b4513"
-        ctx.beginPath()
-        ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI * 2)
-        ctx.fill()
-      } else if (proj.damage >= 10) {
-        // Golden egg
-        ctx.fillStyle = "#ffd700"
-        ctx.beginPath()
-        ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = "#ffff00"
-        ctx.lineWidth = 2
-        ctx.stroke()
-      } else {
-        // Regular egg
-        ctx.fillStyle = "#ffffff"
-        ctx.beginPath()
-        ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Egg spots
-        ctx.fillStyle = "#d4a574"
-        ctx.beginPath()
-        ctx.arc(proj.x - 1, proj.y - 1, 1.5, 0, Math.PI * 2)
-        ctx.arc(proj.x + 1, proj.y + 1, 1.5, 0, Math.PI * 2)
-        ctx.fill()
-      }
+    projectilesRef.current.forEach((proj) => {
+      drawProjectileFromModule(ctx, proj)
     })
+
     floatingTextsRef.current.forEach((text) => {
       ctx.globalAlpha = text.life / 60
-      ctx.font = `bold ${text.fontSize}px Arial` // Use fontSize
+      ctx.font = `bold ${text.fontSize}px Arial`
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
 
-      // Text outline
       ctx.strokeStyle = "#000"
       ctx.lineWidth = 3
       ctx.strokeText(text.text, text.x, text.y)
@@ -1660,17 +1272,13 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
       ctx.shadowBlur = 0
     }
 
-    // start of player drawing
-     drawPlayerFromModule(ctx, player)
-    // end of player drawing
-
-
+    // Draw player
+    drawPlayerFromModule(ctx, player)
 
     enemiesRef.current.forEach((enemy) => {
       ctx.save()
       ctx.translate(enemy.x, enemy.y)
 
-      // Draw stunned indicator
       if (enemy.stunned) {
         ctx.strokeStyle = "yellow"
         ctx.lineWidth = 3
@@ -1687,198 +1295,42 @@ const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
 
       ctx.restore()
     })
-powerUpsRef.current.forEach((powerUp) => {
-  drawPowerUpDetailedFromModule(ctx, powerUp)
-})
+
+    powerUpsRef.current.forEach((powerUp) => {
+      drawPowerUpDetailedFromModule(ctx, powerUp)
+    })
 
     // Draw UI
-    ctx.shadowBlur = 0
+    drawHudFromModule(ctx, {
+      player,
+      canvas,
+      score: scoreRef.current,
+      killCount: killCountRef.current,
+      wave: waveRef.current,
+    })
 
-    // ─── TOP-LEFT: Health bar ───
-    const healthBarGradient = ctx.createLinearGradient(10, 10, 210, 30)
-    if (player.health > 30) {
-      healthBarGradient.addColorStop(0, "#246605")
-      healthBarGradient.addColorStop(1, "#246605")
-    } else {
-      healthBarGradient.addColorStop(0, "#ff0000")
-      healthBarGradient.addColorStop(1, "#aa0000")
-    }
-
-    ctx.fillStyle = "#1a1a2e"
-    ctx.fillRect(10, 10, 200, 24)
-    ctx.fillStyle = healthBarGradient
-    ctx.fillRect(12, 12, (player.health / player.maxHealth) * 196, 20)
-
-    ctx.strokeStyle = "#fff"
-    ctx.lineWidth = 2
-    ctx.strokeRect(10, 10, 200, 24)
-
-    ctx.fillStyle = "#fff"
-    ctx.font = "bold 14px Arial"
-    ctx.textAlign = "center"
-    ctx.fillText(`${Math.ceil(player.health)}/${player.maxHealth}`, 110, 22)
-
-    // ─── TOP-LEFT (below health): Weapon timer ───
-    ctx.textAlign = "left"
-    ctx.font = "bold 15px Arial"
-    let yOffset = 46
-
-    if (player.weaponType !== "basic") {
-      const weaponNames = {
-        doubleYolk: "Double Yolk",
-        scrambled: "Scrambled",
-        hardBoiled: "Piercing",
-        explosive: "Explosive",
-        golden: "GOLDEN!",
-      }
-      const weaponColors = {
-        doubleYolk: "#ffff00",
-        scrambled: "#ffaa00",
-        hardBoiled: "#8b4513",
-        explosive: "#ff3300",
-        golden: "#ffd700",
-      }
-
-      const color = weaponColors[player.weaponType as keyof typeof weaponColors] || "#fff"
-      const timeLeft = Math.ceil(player.weaponTime / 1000)
-      const timePercent = player.weaponType === "golden" ? player.weaponTime / 8000 : player.weaponTime / 15000
-
-      // Countdown ring
-      ctx.strokeStyle = color
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.arc(25, yOffset + 5, 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * timePercent)
-      ctx.stroke()
-
-      ctx.fillStyle = color
-      ctx.shadowBlur = 3
-      ctx.shadowColor = color
-      ctx.fillText(`${weaponNames[player.weaponType as keyof typeof weaponNames]} (${timeLeft}s)`, 45, yOffset + 10)
-      ctx.shadowBlur = 0
-      yOffset += 26
-    }
-
-    // ─── TOP-LEFT (below weapon): Shield timer ───
-    if (player.shield) {
-      const timeLeft = Math.ceil(player.shieldTime / 1000)
-      const timePercent = player.shieldTime / 10000
-
-      ctx.strokeStyle = "#00ffff"
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.arc(25, yOffset + 5, 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * timePercent)
-      ctx.stroke()
-
-      ctx.fillStyle = "#00ffff"
-      ctx.shadowBlur = 3
-      ctx.shadowColor = "#00ffff"
-      ctx.fillText(`Shield (${timeLeft}s)`, 45, yOffset + 10)
-      ctx.shadowBlur = 0
-    }
-
-    // ─── TOP-RIGHT: Time / Kills / Wave ───
-    ctx.shadowBlur = 3
-    ctx.shadowColor = "#000"
-    ctx.fillStyle = "#fff"
-    ctx.font = "bold 20px Arial"
-    ctx.textAlign = "right"
-
-    const totalSeconds = Math.floor(scoreRef.current / 60)
-    const minutes = Math.floor(totalSeconds / 60)
-    const seconds = totalSeconds % 60
-    const timeString = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
-
-    ctx.fillText(`Time: ${timeString}`, canvas.width - 10, 25)
-    ctx.fillText(`Kills: ${killCountRef.current}`, canvas.width - 10, 50)
-    ctx.fillText(`Wave: ${waveRef.current}`, canvas.width - 10, 75)
-    ctx.shadowBlur = 0
-
-    // ─── TOP-RIGHT (below wave): CACA-DOO cooldown ───
-    const cooldownWidth = 130
-    const cooldownHeight = 22
-    const cooldownX = canvas.width - cooldownWidth - 10
-
-    if (player.stunCooldown > 0) {
-      const stunCooldownPercent = player.stunCooldown / 10000
-      ctx.fillStyle = "rgba(255, 255, 0, 0.8)"
-      ctx.fillRect(cooldownX, 92, cooldownWidth, cooldownHeight)
-      ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
-      ctx.fillRect(cooldownX + cooldownWidth * (1 - stunCooldownPercent), 92, cooldownWidth * stunCooldownPercent, cooldownHeight)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText(`CACA-DOO: ${Math.ceil(player.stunCooldown / 1000)}s`, cooldownX + cooldownWidth / 2, 107)
-    } else {
-      ctx.fillStyle = "rgba(129, 2, 2, 0.8)"
-      ctx.fillRect(cooldownX, 92, cooldownWidth, cooldownHeight)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText("CACA-DOO: READY", cooldownX + cooldownWidth / 2, 107)
-    }
-
-   
-    // ─── TOP-RIGHT (below CACA-DOO): Charge status ───
-    if (player.isCharging) {
-      // Currently charging
-      ctx.fillStyle = "rgba(255, 68, 0, 0.9)"
-      ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText("CHARGING!", cooldownX + cooldownWidth / 2, 133)
-    } else if (player.chargeReady) {
-      // Has stored charge, waiting for direction
-      ctx.fillStyle = "rgba(255, 68, 0, 0.9)"
-      ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText("PICK DIRECTION!", cooldownX + cooldownWidth / 2, 133)
-    } else if (player.chargeCooldown > 0) {
-      // Cooldown
-      const chargeCooldownPercent = player.chargeCooldown / 15000
-      ctx.fillStyle = "rgba(100, 100, 100, 0.8)"
-      ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
-      ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
-      ctx.fillRect(cooldownX + cooldownWidth * (1 - chargeCooldownPercent), 118, cooldownWidth * chargeCooldownPercent, cooldownHeight)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText(`CHARGE: ${Math.ceil(player.chargeCooldown / 1000)}s`, cooldownX + cooldownWidth / 2, 133)
-    } else {
-      // Ready (no power-up, but can double-tap)
-      ctx.fillStyle = "rgba(0, 255, 0, 0.8)"
-      ctx.fillRect(cooldownX, 118, cooldownWidth, cooldownHeight)
-      ctx.fillStyle = "white"
-      ctx.font = "bold 12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText("CHARGE: READY", cooldownX + cooldownWidth / 2, 133)
-    }
     ctx.restore()
+  }  
+
+  // Game loop 
+  const gameLoop: GameLoopFn = (currentTime: number) => {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext("2d")
+    if (!canvas || !ctx) return
+
+    if (gameStateRef.current === "playing") {
+      const rawDeltaTime = currentTime - (gameLoop.lastTime ?? 0) || 16
+      const deltaTime = Math.min(Math.max(rawDeltaTime, 1), 34)
+      update(canvas, deltaTime)
+      draw(ctx, canvas)
+      gameLoop.lastTime = currentTime
+    }
+
+    animationIdRef.current = requestAnimationFrame(gameLoop)
   }
 
-// Game loop
-type GameLoopFn = ((currentTime: number) => void) & { lastTime?: number }
-
-const gameLoop: GameLoopFn = (currentTime: number) => {
-  const canvas = canvasRef.current
-  const ctx = canvas?.getContext("2d")
-  if (!canvas || !ctx) return
-
-  if (gameStateRef.current === "playing") {
-    // Calculate deltaTime dynamically for smoother updates
-    const rawDeltaTime = currentTime - (gameLoop.lastTime ?? 0) || 16
-    // Cap catch-up work after a tab switch or a stalled frame so aliens cannot
-    // jump through the chicken and trigger a burst of collision effects.
-    const deltaTime = Math.min(Math.max(rawDeltaTime, 1), 34)
-    update(canvas, deltaTime)
-    draw(ctx, canvas)
-    gameLoop.lastTime = currentTime
-  }
-
-  animationIdRef.current = requestAnimationFrame(gameLoop)
-}
+  // Store gameLoop in ref for startGame to use
+  gameLoopRef.current = gameLoop
 
   // Event listeners
   useEffect(() => {
@@ -1937,30 +1389,26 @@ const gameLoop: GameLoopFn = (currentTime: number) => {
     setJoystickPos({ x: 0, y: 0 })
   }
 
- 
-  // Moved the startGame and restartGame functions to the end of the `useEffect` hook and then removed the duplicated declarations
-  // Moved the handleMouseMove, handleMouseDown, handleMouseUp, and handleTouchMove functions inside the useEffect hook
-
   return (
     <div className="relative w-full h-screen bg-gradient-to-b from-slate-900 to-slate-950 flex items-center justify-center overflow-hidden">
-  <canvas
-  ref={canvasRef}
-  className="border-2 border-slate-700 rounded-lg shadow-2xl"
-  onMouseMove={handleMouseMove}
-  onMouseDown={handleMouseDown}
-  onMouseUp={handleMouseUp}
-  onTouchMove={handleTouchMove}
-  onTouchStart={() => {
-    if (gameState === "playing") {
-      setShootButtonPressed(true)
-    }
-  }}
-  onTouchEnd={() => {
-    if (gameState === "playing") {
-      setShootButtonPressed(false)
-    }
-  }}
-/>
+      <canvas
+        ref={canvasRef}
+        className="border-2 border-slate-700 rounded-lg shadow-2xl"
+        onMouseMove={handleMouseMove}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onTouchMove={handleTouchMove}
+        onTouchStart={() => {
+          if (gameState === "playing") {
+            setShootButtonPressed(true)
+          }
+        }}
+        onTouchEnd={() => {
+          if (gameState === "playing") {
+            setShootButtonPressed(false)
+          }
+        }}
+      />
 
       {/* Start Menu */}
       {gameState === "menu" && (
@@ -2028,7 +1476,6 @@ const gameLoop: GameLoopFn = (currentTime: number) => {
       {/* Mobile Controls */}
       {isMobile && gameState === "playing" && (
         <>
-          {/* Joystick */}
           <div
             className="absolute bottom-4 left-4 flex h-28 w-28 items-center justify-center rounded-full border-2 border-white/30 bg-white/10 backdrop-blur-sm"
             onTouchStart={handleJoystickStart}
@@ -2043,7 +1490,6 @@ const gameLoop: GameLoopFn = (currentTime: number) => {
             />
           </div>
 
-          {/* Shoot Button */}
           <button
             className="absolute bottom-4 right-4 flex h-20 w-20 items-center justify-center rounded-full border-2 border-red-300 bg-gradient-to-br from-red-500 to-red-700 text-3xl shadow-lg backdrop-blur-sm active:from-red-600 active:to-red-800 active:shadow-xl"
             onTouchStart={() => setShootButtonPressed(true)}
