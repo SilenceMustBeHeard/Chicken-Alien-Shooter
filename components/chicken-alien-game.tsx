@@ -4,6 +4,7 @@ import type React from "react"
 import { useKeyboard } from "@/hooks/use-keyboard"
 import { useCanvas } from "@/hooks/use-canvas"
 import { useAudio } from "@/hooks/use-audio"
+import { usePlayer } from "@/hooks/use-player"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Volume2, VolumeX } from "lucide-react"
@@ -14,10 +15,9 @@ import { createFloatingTextSpawner } from "@/lib/game/context/impl/create-floati
 import { createScreenShake } from "@/lib/game/context/impl/create-screen-shake"
 import { createUIController } from "@/lib/game/context/impl/create-ui-controller"
 import { createBossContext } from "@/lib/game/context/impl/create-boss-context"
-import { createAudioSystem, type OscillatorWaveType } from "@/lib/game/audio"
 import { getBossBehavior } from "@/lib/game/bosses"
 import { spawnBoss as spawnBossFromRegistry } from "@/lib/game/boss-spawning"
-import { drawPlayer as drawPlayerFromModule, updatePlayer as updatePlayerFromModule } from "@/lib/game/player"
+import { drawPlayer as drawPlayerFromModule } from "@/lib/game/player"
 import {
   drawAlienCreature as drawAlienCreatureFromModule,
   spawnEnemies as spawnEnemiesFromModule,
@@ -32,7 +32,6 @@ import {
   spawnPowerUp as spawnPowerUpFromModule,
   spawnWeaponPowerUp as spawnWeaponPowerUpFromModule,
   updatePowerUps as updatePowerUpsFromModule,
-  drawPowerUp as drawPowerUpFromModule,
   drawPowerUpDetailed as drawPowerUpDetailedFromModule,
 } from "@/lib/game/powerups"
 import { drawHud as drawHudFromModule, drawBossBar as drawBossBarFromModule } from "@/lib/game/ui"
@@ -43,8 +42,6 @@ import {
 } from "@/lib/game/background"
 
 import type {
-  GameObject,
-  Player,
   Enemy,
   EnemyType,
   FlyingSaucer,
@@ -52,14 +49,13 @@ import type {
   BossType,
   Projectile,
   PowerUp,
-  PowerUpType,
   Particle,
   FloatingText,
   GameState,
 } from "@/lib/game/types"
 import { DIFFICULTY_SCALING, ALIEN_COLORS } from "@/lib/game/constants"
 
-// Game loop type (defined outside component)
+// Game loop type 
 type GameLoopFn = ((currentTime: number) => void) & { lastTime?: number }
 
 export function ChickenAlienGame() {
@@ -83,7 +79,7 @@ export function ChickenAlienGame() {
   const keysRef = useRef<Set<string>>(new Set())
   const lastKeyPressRef = useRef<{ key: string; time: number }>({ key: "", time: 0 })
   const mouseRef = useRef({ x: 0, y: 0, down: false })
-  const playerRef = useRef<Player | null>(null)
+
   const enemiesRef = useRef<Enemy[]>([])
   const flyingSaucersRef = useRef<FlyingSaucer[]>([])
   const projectilesRef = useRef<Projectile[]>([])
@@ -103,30 +99,200 @@ export function ChickenAlienGame() {
   const screenShakeYRef = useRef(0)
   const gameTimeRef = useRef(0)
   const animationIdRef = useRef<number | null>(null)
-
   const gameLoopRef = useRef<GameLoopFn | null>(null)
 
   const getAlienColor = (type: EnemyType): string => {
     return ALIEN_COLORS[type] ?? "#00ff00"
   }
 
+  // Audio hook
   const {
-  audioContextRef,
-  soundEnabledRef,
-  audioSystem,
-  initAudio,
-  playSound,
-  shootSound,
-  eggSplashSound,
-  enemyDeadSound,
-  chickenHitSound,
-  chickenDeathSound,
-  powerUpSound,
-  chargeSound,
-  stunSound,
-} = useAudio(soundEnabled)
+    audioContextRef,
+    soundEnabledRef,
+    audioSystem,
+    initAudio,
+    playSound,
+    shootSound,
+    eggSplashSound,
+    enemyDeadSound,
+    chickenHitSound,
+    chickenDeathSound,
+    powerUpSound,
+    chargeSound,
+    stunSound,
+  } = useAudio(soundEnabled)
 
-  // Game context (abstractions)
+  // Helpers 
+  const createParticles = (x: number, y: number, color: string) => {
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 * i) / 12
+      const speed = 2 + Math.random() * 3
+      particlesRef.current.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 30,
+        color,
+      })
+    }
+  }
+
+  const addScreenShake = (intensity: number) => {
+    screenShakeRef.current = Math.max(screenShakeRef.current, intensity)
+  }
+
+  const addFloatingText = (x: number, y: number, text: string, color: string, size = 20) => {
+    floatingTextsRef.current.push({
+      x,
+      y,
+      text,
+      color,
+      life: 60,
+      fontSize: size,
+      velocity: { x: 0, y: -1 },
+    })
+  }
+
+  // Shoot 
+  const shoot = (canvas: HTMLCanvasElement, angle?: number) => {
+    const player = playerRef.current
+    if (!player) return
+
+    shootFromModule({
+      player,
+      angle,
+      mouseX: mouseRef.current.x,
+      mouseY: mouseRef.current.y,
+      pushProjectile: (proj) => projectilesRef.current.push(proj),
+      playSound,
+    })
+  }
+
+  // Player hook
+  const {
+    playerRef,
+    initPlayer,
+    updatePlayer,
+  } = usePlayer({
+    canvasRef,
+    keysRef,
+    mouseRef,
+    isMobile,
+    joystickActive,
+    joystickPos,
+    shootButtonPressed,
+    shoot,
+    onCharge: () => {
+      chargeSound()
+      const player = playerRef.current
+      if (player) {
+        addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
+        addScreenShake(10)
+      }
+    },
+    onStun: () => {
+      stunSound()
+      const player = playerRef.current
+      if (player) {
+        player.stunCooldown = 10000
+        addFloatingText(player.x, player.y - 40, "CACA-DOO!", "#ffff00", 24)
+        addScreenShake(8)
+        enemiesRef.current.forEach((enemy) => {
+          enemy.stunned = true
+          enemy.stunnedTime = 3000
+        })
+      }
+    },
+    chickenHitSound,
+  })
+
+  // Canvas hook 
+  useCanvas(canvasRef, playerRef)
+
+  // Keyboard hook 
+  useKeyboard(keysRef, gameStateRef, playerRef, mouseRef, () => {
+    chargeSound()
+    const player = playerRef.current
+    if (player) {
+      addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
+      addScreenShake(10)
+    }
+  })
+
+  // initGameState
+  const initGameState = () => {
+    enemiesRef.current = []
+    flyingSaucersRef.current = []
+    projectilesRef.current = []
+    powerUpsRef.current = []
+    particlesRef.current = []
+    floatingTextsRef.current = []
+    bossRef.current = null
+    scoreRef.current = 0
+    waveRef.current = 1
+    spawnTimerRef.current = 0
+    powerUpTimerRef.current = 0
+    saucerSpawnTimerRef.current = 0
+    lastBossWaveRef.current = 0
+    screenShakeRef.current = 0
+    setScore(0)
+  }
+
+  // startGame
+  const startGame = () => {
+    initAudio()
+    initPlayer()
+    initGameState()
+    gameStateRef.current = "playing"
+    setGameState("playing")
+    if (animationIdRef.current === null && gameLoopRef.current) {
+      animationIdRef.current = requestAnimationFrame(gameLoopRef.current)
+    }
+  }
+
+  // restartGame
+  const restartGame = () => {
+    startGame()
+  }
+
+  // Spawn helpers
+  const spawnPowerUp = (canvas: HTMLCanvasElement) => {
+    spawnPowerUpFromModule(canvas, (powerUp) => powerUpsRef.current.push(powerUp))
+  }
+
+  const spawnWeaponPowerUp = (x: number, y: number) => {
+    spawnWeaponPowerUpFromModule(x, y, (powerUp) => powerUpsRef.current.push(powerUp))
+  }
+
+  const spawnFlyingSaucer = (canvas: HTMLCanvasElement) => {
+    const side = Math.random() < 0.5 ? 0 : 1
+    const y = Math.random() * (canvas.height * 0.6) + canvas.height * 0.1
+
+    flyingSaucersRef.current.push({
+      x: side === 0 ? -30 : canvas.width + 30,
+      y,
+      radius: 18,
+      speed: 1.5 + Math.random(),
+      health: 5,
+      direction: side === 0 ? 1 : -1,
+      bobOffset: Math.random() * Math.PI * 2,
+    })
+  }
+
+  const spawnBoss = (canvas: HTMLCanvasElement) => {
+    const boss = spawnBossFromRegistry({
+      canvas,
+      lastBossWave: lastBossWaveRef.current,
+      playSound: (freq, dur, type) => playSound(freq, dur, type ?? "sine"),
+    })
+
+    if (boss) {
+      bossRef.current = boss
+    }
+  }
+
+  // gameContext
   const gameContext = useMemo(() => {
     const projectiles = createProjectileSpawner(projectilesRef)
     const enemies = createEnemySpawner(
@@ -173,9 +339,6 @@ export function ChickenAlienGame() {
     setIsMobile("ontouchstart" in window)
   }, [])
 
-  // Effect 2: Resize canvas to fill container (with max size + centering)
-  useCanvas(canvasRef, playerRef)
-
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!joystickActive && gameState === "playing") {
       e.preventDefault()
@@ -208,159 +371,6 @@ export function ChickenAlienGame() {
     mouseRef.current.down = false
   }
 
-
-
-
- 
-
-  // Initialize game
-  const initGame = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    playerRef.current = {
-      x: canvas.width / 2,
-      y: canvas.height / 2,
-      radius: 15,
-      health: 100,
-      maxHealth: 100,
-      speed: 5,
-      shootCooldown: 0,
-      weaponType: "basic",
-      weaponTime: 0,
-      shield: false,
-      shieldTime: 0,
-      chargeCooldown: 0,
-      stunCooldown: 0,
-      isCharging: false,
-      chargeDistance: 0,
-      chargeDirection: { x: 0, y: 0 },
-      chargeReady: false,
-      invincibleTime: 0,
-    }
-    enemiesRef.current = []
-    flyingSaucersRef.current = []
-    projectilesRef.current = []
-    powerUpsRef.current = []
-    particlesRef.current = []
-    floatingTextsRef.current = []
-    bossRef.current = null
-    scoreRef.current = 0
-    waveRef.current = 1
-    spawnTimerRef.current = 0
-    powerUpTimerRef.current = 0
-    saucerSpawnTimerRef.current = 0
-    lastBossWaveRef.current = 0
-    screenShakeRef.current = 0
-    setScore(0)
-  }
-
-  // Start game (uses gameLoopRef to avoid TDZ)
-  const startGame = () => {
-    initAudio()
-    initGame()
-    gameStateRef.current = "playing"
-    setGameState("playing")
-    if (animationIdRef.current === null && gameLoopRef.current) {
-      animationIdRef.current = requestAnimationFrame(gameLoopRef.current)
-    }
-  }
-
-  // Restart game
-  const restartGame = () => {
-    startGame()
-  }
-
-  // Spawn power-up
-  const spawnPowerUp = (canvas: HTMLCanvasElement) => {
-    spawnPowerUpFromModule(canvas, (powerUp) => powerUpsRef.current.push(powerUp))
-  }
-
-  // Spawn weapon power-up from flying saucer
-  const spawnWeaponPowerUp = (x: number, y: number) => {
-    spawnWeaponPowerUpFromModule(x, y, (powerUp) => powerUpsRef.current.push(powerUp))
-  }
-
-  // Spawn flying saucers
-  const spawnFlyingSaucer = (canvas: HTMLCanvasElement) => {
-    const side = Math.random() < 0.5 ? 0 : 1
-    const y = Math.random() * (canvas.height * 0.6) + canvas.height * 0.1
-
-    flyingSaucersRef.current.push({
-      x: side === 0 ? -30 : canvas.width + 30,
-      y,
-      radius: 18,
-      speed: 1.5 + Math.random(),
-      health: 5,
-      direction: side === 0 ? 1 : -1,
-      bobOffset: Math.random() * Math.PI * 2,
-    })
-  }
-
-  const spawnBoss = (canvas: HTMLCanvasElement) => {
-    const boss = spawnBossFromRegistry({
-      canvas,
-      lastBossWave: lastBossWaveRef.current,
-      playSound: (freq, dur, type) => playSound(freq, dur, type ?? "sine"),
-    })
-
-    if (boss) {
-      bossRef.current = boss
-    }
-  }
-
-  // Shoot projectile
-  const shoot = (canvas: HTMLCanvasElement, angle?: number) => {
-    const player = playerRef.current
-    if (!player) return
-
-    shootFromModule({
-      player,
-      angle,
-      mouseX: mouseRef.current.x,
-      mouseY: mouseRef.current.y,
-      pushProjectile: (proj) => projectilesRef.current.push(proj),
-      playSound,
-    })
-  }
-
-  // Create particles
-  const createParticles = (x: number, y: number, color: string) => {
-    for (let i = 0; i < 12; i++) {
-      const angle = (Math.PI * 2 * i) / 12
-      const speed = 2 + Math.random() * 3
-      particlesRef.current.push({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 30,
-        color,
-      })
-    }
-  }
-
-  const addScreenShake = (intensity: number) => {
-    screenShakeRef.current = Math.max(screenShakeRef.current, intensity)
-  }
-
-  const addFloatingText = (x: number, y: number, text: string, color: string, size = 20) => {
-    floatingTextsRef.current.push({
-      x,
-      y,
-      text,
-      color,
-      life: 60,
-      fontSize: size,
-      velocity: { x: 0, y: -1 },
-    })
-  }
-useKeyboard(keysRef, gameStateRef, playerRef, mouseRef, () => {
-  chargeSound()
-  addFloatingText(playerRef.current!.x, playerRef.current!.y - 40, "CHARGE!", "#ff0000", 24)
-  addScreenShake(10)
-})
-
   // Update game state
   const update = (canvas: HTMLCanvasElement, deltaTime: number) => {
     const player = playerRef.current
@@ -386,33 +396,7 @@ useKeyboard(keysRef, gameStateRef, playerRef, mouseRef, () => {
     }
 
     // Update player movement
-    updatePlayerFromModule({
-      player,
-      keys: keysRef.current,
-      mouse: mouseRef.current,
-      canvas,
-      isMobile,
-      joystickActive,
-      joystickPos,
-      shootButtonPressed,
-      deltaTime,
-      shoot: () => shoot(canvas),
-      onCharge: () => {
-        chargeSound()
-        addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
-        addScreenShake(10)
-      },
-      onStun: () => {
-        stunSound()
-        player.stunCooldown = 10000
-        addFloatingText(player.x, player.y - 40, "CACA-DOO!", "#ffff00", 24)
-        addScreenShake(8)
-        enemiesRef.current.forEach((enemy) => {
-          enemy.stunned = true
-          enemy.stunnedTime = 3000
-        })
-      },
-    })
+    updatePlayer(canvas, deltaTime)
 
     // Spawn boss
     if (waveRef.current - lastBossWaveRef.current >= 5 && !bossRef.current) {
@@ -493,7 +477,7 @@ useKeyboard(keysRef, gameStateRef, playerRef, mouseRef, () => {
         })
         behavior.update(boss, bossCtx)
 
-        // Rewards on death (unless boss already handled it via killBoss)
+        // Rewards on death 
         if (!bossRef.current) {
           const rewardScore =
             type === "omegaPrime" ? 2000 : type === "theHive" ? 1000 : 500
@@ -980,7 +964,7 @@ useKeyboard(keysRef, gameStateRef, playerRef, mouseRef, () => {
     ctx.translate(screenShakeXRef.current, screenShakeYRef.current)
 
     // Clear canvas with gradient background
-  drawBackgroundFromModule(ctx, canvas)
+    drawBackgroundFromModule(ctx, canvas)
 
     const player = playerRef.current
     if (!player) {
@@ -988,7 +972,7 @@ useKeyboard(keysRef, gameStateRef, playerRef, mouseRef, () => {
       return
     }
 
-   drawParticlesFromModule(ctx, particlesRef.current)
+    drawParticlesFromModule(ctx, particlesRef.current)
 
     // Draw enemies
     const animationTime = Date.now()
@@ -1124,7 +1108,7 @@ useKeyboard(keysRef, gameStateRef, playerRef, mouseRef, () => {
       drawProjectileFromModule(ctx, proj)
     })
 
-  drawFloatingTextsFromModule(ctx, floatingTextsRef.current)
+    drawFloatingTextsFromModule(ctx, floatingTextsRef.current)
 
     if (player.shield) {
       const shieldPulse = 1 + Math.sin(Date.now() / 150) * 0.1
@@ -1176,9 +1160,9 @@ useKeyboard(keysRef, gameStateRef, playerRef, mouseRef, () => {
     })
 
     ctx.restore()
-  }  
+  }
 
-  // Game loop 
+  // Game loop
   const gameLoop: GameLoopFn = (currentTime: number) => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext("2d")
