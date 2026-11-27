@@ -33,6 +33,11 @@ import {
   drawPowerUpDetailed as drawPowerUpDetailedFromModule,
 } from "@/lib/game/powerups"
 import { drawHud as drawHudFromModule, drawBossBar as drawBossBarFromModule } from "@/lib/game/ui"
+import {
+  drawBackground as drawBackgroundFromModule,
+  drawParticles as drawParticlesFromModule,
+  drawFloatingTexts as drawFloatingTextsFromModule,
+} from "@/lib/game/background"
 
 import type {
   GameObject,
@@ -1083,11 +1088,7 @@ export function ChickenAlienGame() {
     ctx.translate(screenShakeXRef.current, screenShakeYRef.current)
 
     // Clear canvas with gradient background
-    const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
-    bgGradient.addColorStop(0, "#0a0a1a")
-    bgGradient.addColorStop(1, "#1a0a2a")
-    ctx.fillStyle = bgGradient
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+  drawBackgroundFromModule(ctx, canvas)
 
     const player = playerRef.current
     if (!player) {
@@ -1095,21 +1096,7 @@ export function ChickenAlienGame() {
       return
     }
 
-    particlesRef.current.forEach((particle) => {
-      const alpha = particle.life / 30
-      ctx.globalAlpha = alpha
-
-      ctx.shadowBlur = 10
-      ctx.shadowColor = particle.color
-
-      ctx.fillStyle = particle.color
-      ctx.beginPath()
-      ctx.arc(particle.x, particle.y, 3, 0, Math.PI * 2)
-      ctx.fill()
-
-      ctx.shadowBlur = 0
-    })
-    ctx.globalAlpha = 1
+   drawParticlesFromModule(ctx, particlesRef.current)
 
     // Draw enemies
     const animationTime = Date.now()
@@ -1245,20 +1232,7 @@ export function ChickenAlienGame() {
       drawProjectileFromModule(ctx, proj)
     })
 
-    floatingTextsRef.current.forEach((text) => {
-      ctx.globalAlpha = text.life / 60
-      ctx.font = `bold ${text.fontSize}px Arial`
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-
-      ctx.strokeStyle = "#000"
-      ctx.lineWidth = 3
-      ctx.strokeText(text.text, text.x, text.y)
-
-      ctx.fillStyle = text.color
-      ctx.fillText(text.text, text.x, text.y)
-    })
-    ctx.globalAlpha = 1
+  drawFloatingTextsFromModule(ctx, floatingTextsRef.current)
 
     if (player.shield) {
       const shieldPulse = 1 + Math.sin(Date.now() / 150) * 0.1

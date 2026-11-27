@@ -82,7 +82,7 @@ export function drawBossBar(
   ctx.lineWidth = 2
   ctx.strokeRect(barX, barY, barWidth, barHeight)
 
-  //  BOSS NAME + HP ───
+  //  BOSS NAME + HP 
   ctx.fillStyle = "#fff"
   ctx.font = "bold 16px Arial"
   ctx.textAlign = "center"
