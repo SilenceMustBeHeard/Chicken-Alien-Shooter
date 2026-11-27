@@ -1,5 +1,6 @@
+// hooks/use-player.ts
 
-import { useRef, type RefObject } from "react"
+import type { RefObject } from "react"
 import type { Player } from "@/lib/game/types"
 import { updatePlayer as updatePlayerFromModule } from "@/lib/game/player"
 
@@ -7,6 +8,7 @@ export type UsePlayerOptions = {
   canvasRef: RefObject<HTMLCanvasElement | null>
   keysRef: RefObject<Set<string>>
   mouseRef: RefObject<{ x: number; y: number; down: boolean }>
+  playerRef: RefObject<Player | null>
   isMobile: boolean
   joystickActive: boolean
   joystickPos: { x: number; y: number }
@@ -18,13 +20,11 @@ export type UsePlayerOptions = {
 }
 
 export function usePlayer(options: UsePlayerOptions) {
-  const playerRef = useRef<Player | null>(null)
-
   const initPlayer = () => {
     const canvas = options.canvasRef.current
     if (!canvas) return
 
-    playerRef.current = {
+    options.playerRef.current = {
       x: canvas.width / 2,
       y: canvas.height / 2,
       radius: 15,
@@ -47,7 +47,7 @@ export function usePlayer(options: UsePlayerOptions) {
   }
 
   const updatePlayer = (canvas: HTMLCanvasElement, deltaTime: number) => {
-    const player = playerRef.current
+    const player = options.playerRef.current
     if (!player) return
 
     updatePlayerFromModule({
@@ -67,7 +67,6 @@ export function usePlayer(options: UsePlayerOptions) {
   }
 
   return {
-    playerRef,
     initPlayer,
     updatePlayer,
   }
