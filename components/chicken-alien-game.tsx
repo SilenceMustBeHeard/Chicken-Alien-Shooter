@@ -1,6 +1,9 @@
 "use client"
 
 import type React from "react"
+import { useKeyboard } from "@/hooks/use-keyboard"
+import { useCanvas } from "@/hooks/use-canvas"
+import { useAudio } from "@/hooks/use-audio"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Volume2, VolumeX } from "lucide-react"
@@ -69,11 +72,6 @@ export function ChickenAlienGame() {
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [finalWave, setFinalWave] = useState(0)
-  const soundEnabledRef = useRef(soundEnabled)
-
-  useEffect(() => {
-    soundEnabledRef.current = soundEnabled
-  }, [soundEnabled])
 
   // Touch controls state
   const [joystickActive, setJoystickActive] = useState(false)
@@ -105,21 +103,28 @@ export function ChickenAlienGame() {
   const screenShakeYRef = useRef(0)
   const gameTimeRef = useRef(0)
   const animationIdRef = useRef<number | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
+
   const gameLoopRef = useRef<GameLoopFn | null>(null)
 
   const getAlienColor = (type: EnemyType): string => {
     return ALIEN_COLORS[type] ?? "#00ff00"
   }
 
-  const audioSystem = useMemo(
-    () =>
-      createAudioSystem({
-        audioContextRef,
-        isEnabledRef: soundEnabledRef,
-      }),
-    [audioContextRef, soundEnabledRef],
-  )
+  const {
+  audioContextRef,
+  soundEnabledRef,
+  audioSystem,
+  initAudio,
+  playSound,
+  shootSound,
+  eggSplashSound,
+  enemyDeadSound,
+  chickenHitSound,
+  chickenDeathSound,
+  powerUpSound,
+  chargeSound,
+  stunSound,
+} = useAudio(soundEnabled)
 
   // Game context (abstractions)
   const gameContext = useMemo(() => {
@@ -169,47 +174,7 @@ export function ChickenAlienGame() {
   }, [])
 
   // Effect 2: Resize canvas to fill container (with max size + centering)
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const resizeCanvas = () => {
-      const parent = canvas.parentElement
-      if (!parent) return
-      const rect = parent.getBoundingClientRect()
-
-      const maxW = 1200
-      const maxH = 800
-      const aspect = maxW / maxH
-
-      let w = rect.width
-      let h = rect.height
-
-      if (w / h > aspect) {
-        w = h * aspect
-      } else {
-        h = w / aspect
-      }
-
-      canvas.width = Math.floor(w)
-      canvas.height = Math.floor(h)
-      canvas.style.width = `${w}px`
-      canvas.style.height = `${h}px`
-      canvas.style.position = "absolute"
-      canvas.style.left = `${(rect.width - w) / 2}px`
-      canvas.style.top = `${(rect.height - h) / 2}px`
-
-      const player = playerRef.current
-      if (player) {
-        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
-        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
-      }
-    }
-
-    resizeCanvas()
-    window.addEventListener("resize", resizeCanvas)
-    return () => window.removeEventListener("resize", resizeCanvas)
-  }, [])
+  useCanvas(canvasRef, playerRef)
 
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!joystickActive && gameState === "playing") {
@@ -243,27 +208,10 @@ export function ChickenAlienGame() {
     mouseRef.current.down = false
   }
 
-  // Audio system 
-  const initAudio = () => audioSystem.init()
 
-  const playSound = (
-    freq: number,
-    dur: number,
-    type?: OscillatorWaveType,
-    gainValue?: number,
-    startFreq?: number,
-    endFreq?: number,
-  ) => {
-    audioSystem.play(freq, dur, type)
-  }
-  const shootSound = () => audioSystem.shootSound()
-  const eggSplashSound = () => audioSystem.eggSplashSound()
-  const enemyDeadSound = () => audioSystem.enemyDeadSound()
-  const chickenHitSound = () => audioSystem.chickenHitSound()
-  const chickenDeathSound = () => audioSystem.chickenDeathSound()
-  const powerUpSound = () => audioSystem.powerUpSound()
-  const chargeSound = () => audioSystem.chargeSound()
-  const stunSound = () => audioSystem.stunSound()
+
+
+ 
 
   // Initialize game
   const initGame = () => {
@@ -407,67 +355,11 @@ export function ChickenAlienGame() {
       velocity: { x: 0, y: -1 },
     })
   }
-
-  // Effect 3: Keyboard listeners
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase()
-      keysRef.current.add(key)
-
-      // Q - Charge ability
-      
-      if (key === "q" && gameStateRef.current === "playing") {
-        const player = playerRef.current
-        if (player && !player.isCharging && player.chargeCooldown <= 0) {
-          let dirX = 0
-          let dirY = 0
-
-          if (keysRef.current.has("w") || keysRef.current.has("arrowup")) dirY = -1
-          if (keysRef.current.has("s") || keysRef.current.has("arrowdown")) dirY = 1
-          if (keysRef.current.has("a") || keysRef.current.has("arrowleft")) dirX = -1
-          if (keysRef.current.has("d") || keysRef.current.has("arrowright")) dirX = 1
-
-          if (dirX === 0 && dirY === 0) {
-            const angleToMouse = Math.atan2(
-              mouseRef.current.y - player.y,
-              mouseRef.current.x - player.x,
-            )
-            dirX = Math.cos(angleToMouse)
-            dirY = Math.sin(angleToMouse)
-          } else {
-            const len = Math.sqrt(dirX * dirX + dirY * dirY)
-            dirX /= len
-            dirY /= len
-          }
-
-          player.isCharging = true
-          player.chargeDistance = 0
-          player.chargeCooldown = 15000
-          player.chargeDirection = { x: dirX, y: dirY }
-          player.chargeReady = false
-
-          chargeSound()
-          addFloatingText(player.x, player.y - 40, "CHARGE!", "#ff0000", 24)
-          addScreenShake(10)
-        }
-      }
-    }
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysRef.current.delete(e.key.toLowerCase())
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    window.addEventListener("keyup", handleKeyUp)
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
-      window.removeEventListener("keyup", handleKeyUp)
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current)
-      }
-    }
-  }, [])
+useKeyboard(keysRef, gameStateRef, playerRef, mouseRef, () => {
+  chargeSound()
+  addFloatingText(playerRef.current!.x, playerRef.current!.y - 40, "CHARGE!", "#ff0000", 24)
+  addScreenShake(10)
+})
 
   // Update game state
   const update = (canvas: HTMLCanvasElement, deltaTime: number) => {
