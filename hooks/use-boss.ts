@@ -2,10 +2,26 @@
 import { useRef, type RefObject } from "react"
 import type { Boss, BossType, Enemy, Player, Projectile, GameState } from "@/lib/game/types"
 import type { OscillatorWaveType } from "@/lib/game/audio"
+import type { ProjectileSpawner } from "@/lib/game/context/projectile-spawner"
+import type { EnemySpawner } from "@/lib/game/context/enemy-spawner"
+import type { ParticleSpawner } from "@/lib/game/context/particle-spawner"
+import type { FloatingTextSpawner } from "@/lib/game/context/floating-text-spawner"
+import type { ScreenShake } from "@/lib/game/context/screen-shake"
+import type { AudioSystem } from "@/lib/game/audio"
+import type { UIController } from "@/lib/game/context/ui-controller"
 import { getBossBehavior } from "@/lib/game/bosses"
 import { spawnBoss as spawnBossFromRegistry } from "@/lib/game/boss-spawning"
 import { createBossContext } from "@/lib/game/context/impl/create-boss-context"
 
+type GameContextShape = {
+  projectiles: ProjectileSpawner
+  enemies: EnemySpawner
+  particles: ParticleSpawner
+  floatingTexts: FloatingTextSpawner
+  screenShake: ScreenShake
+  audio: AudioSystem
+  ui: UIController
+}
 
 export type UseBossOptions = {
   canvasRef: RefObject<HTMLCanvasElement | null>
@@ -17,17 +33,9 @@ export type UseBossOptions = {
   gameTimeRef: RefObject<number>
   scoreRef: RefObject<number>
   killCountRef: RefObject<number>
-  gameStateRef: RefObject<string>
-  gameContext: {
-    projectiles: any
-    enemies: any
-    particles: any
-    floatingTexts: any
-    screenShake: any
-    audio: any
-    ui: any
-  }
- playSound: (freq: number, dur: number, type?: OscillatorWaveType) => void
+  gameStateRef: RefObject<GameState>
+  gameContext: GameContextShape
+  playSound: (freq: number, dur: number, type?: OscillatorWaveType) => void
   chickenHitSound: () => void
   addFloatingText: (x: number, y: number, text: string, color: string, size?: number) => void
   addScreenShake: (intensity: number) => void
@@ -41,23 +49,48 @@ export type UseBossOptions = {
 }
 
 export function useBoss(options: UseBossOptions) {
+  const {
+    canvasRef,
+    playerRef,
+    enemiesRef,
+    projectilesRef,
+    waveRef,
+    lastBossWaveRef,
+    gameTimeRef,
+    scoreRef,
+    killCountRef,
+    gameStateRef,
+    gameContext,
+    playSound,
+    chickenHitSound,
+    addFloatingText,
+    addScreenShake,
+    spawnWeaponPowerUp,
+    setScore,
+    setKillCount,
+    setFinalScore,
+    setFinalKillCount,
+    setFinalWave,
+    setGameState,
+  } = options
+
   const bossRef = useRef<Boss | null>(null)
 
-const spawnBoss = (canvas: HTMLCanvasElement) => {
-  const boss = spawnBossFromRegistry({
-    canvas,
-    lastBossWave: options.lastBossWaveRef.current,
-    playSound: (freq, dur, type) => options.playSound(freq, dur, type),
-  })
+  const spawnBoss = (canvas: HTMLCanvasElement) => {
+    const boss = spawnBossFromRegistry({
+      canvas,
+      lastBossWave: lastBossWaveRef.current,
+      playSound: (freq, dur, type) => playSound(freq, dur, type),
+    })
 
-  if (boss) {
-    bossRef.current = boss
+    if (boss) {
+      bossRef.current = boss
+    }
   }
-}
 
   const updateBoss = (canvas: HTMLCanvasElement, deltaTime: number) => {
     const boss = bossRef.current
-    const player = options.playerRef.current
+    const player = playerRef.current
     if (!boss || !player) return
 
     const runBossUpdate = (type: BossType) => {
@@ -68,31 +101,31 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
         canvasWidth: canvas.width,
         canvasHeight: canvas.height,
         deltaTime,
-        bossTime: options.gameTimeRef.current,
-        enemiesRef: options.enemiesRef,
-        projectilesRef: options.projectilesRef,
-        getWave: () => options.waveRef.current,
+        bossTime: gameTimeRef.current,
+        enemiesRef,
+        projectilesRef,
+        getWave: () => waveRef.current,
         killBoss: () => {
           bossRef.current = null
-          options.lastBossWaveRef.current = options.waveRef.current
+          lastBossWaveRef.current = waveRef.current
         },
         damagePlayer: (amount, _source) => {
           if (player.invincibleTime <= 0 && !player.shield) {
             player.health -= amount
             player.invincibleTime = 60
-            options.chickenHitSound()
+            chickenHitSound()
           }
         },
         healPlayer: (amount) => {
           player.health = Math.min(player.maxHealth, player.health + amount)
         },
-        projectiles: options.gameContext.projectiles,
-        enemies: options.gameContext.enemies,
-        particles: options.gameContext.particles,
-        floatingTexts: options.gameContext.floatingTexts,
-        screenShake: options.gameContext.screenShake,
-        audio: options.gameContext.audio,
-        ui: options.gameContext.ui,
+        projectiles: gameContext.projectiles,
+        enemies: gameContext.enemies,
+        particles: gameContext.particles,
+        floatingTexts: gameContext.floatingTexts,
+        screenShake: gameContext.screenShake,
+        audio: gameContext.audio,
+        ui: gameContext.ui,
       })
       behavior.update(boss, bossCtx)
 
@@ -103,20 +136,20 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
         const rewardPowerUps =
           type === "omegaPrime" || type === "theHive" ? 5 : 3
 
-        options.scoreRef.current += rewardScore
-        options.setScore(options.scoreRef.current)
-        options.killCountRef.current += 1
-        options.setKillCount(options.killCountRef.current)
+        scoreRef.current += rewardScore
+        setScore(scoreRef.current)
+        killCountRef.current += 1
+        setKillCount(killCountRef.current)
 
         const fx = type === "omegaPrime" ? canvas.width / 2 : boss.x
         const fy = type === "omegaPrime" ? canvas.height / 2 : boss.y
 
-        options.addFloatingText(fx, fy - 40, `+${rewardScore}`, "#ffff00", 32)
-        options.addScreenShake(type === "omegaPrime" ? 25 : type === "theHive" ? 20 : 15)
-        options.playSound(200, 0.5, "sawtooth")
+        addFloatingText(fx, fy - 40, `+${rewardScore}`, "#ffff00", 32)
+        addScreenShake(type === "omegaPrime" ? 25 : type === "theHive" ? 20 : 15)
+        playSound(200, 0.5, "sawtooth")
 
         for (let p = 0; p < rewardPowerUps; p++) {
-          options.spawnWeaponPowerUp(
+          spawnWeaponPowerUp(
             fx + (Math.random() - 0.5) * (type === "omegaPrime" ? 120 : 80),
             fy + (Math.random() - 0.5) * (type === "omegaPrime" ? 120 : 80),
           )
@@ -124,10 +157,10 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
       }
 
       // Extra: game over check for bosses that can kill player
-      if (options.gameStateRef.current === "gameOver") {
-        options.setFinalScore(options.scoreRef.current)
-        options.setFinalKillCount(options.killCountRef.current)
-        options.setFinalWave(options.waveRef.current)
+      if (gameStateRef.current === "gameOver") {
+        setFinalScore(scoreRef.current)
+        setFinalKillCount(killCountRef.current)
+        setFinalWave(waveRef.current)
       }
     }
 
@@ -239,15 +272,15 @@ const spawnBoss = (canvas: HTMLCanvasElement) => {
 
           player.health -= contactDamage
           player.invincibleTime = 60
-          options.chickenHitSound()
-          options.addScreenShake(10)
-          options.addFloatingText(player.x, player.y - 30, `-${contactDamage}`, "#ff0000", 18)
+          chickenHitSound()
+          addScreenShake(10)
+          addFloatingText(player.x, player.y - 30, `-${contactDamage}`, "#ff0000", 18)
 
           if (player.health <= 0) {
-            options.setGameState("gameOver")
-            options.setFinalScore(options.scoreRef.current)
-            options.setFinalKillCount(options.killCountRef.current)
-            options.setFinalWave(options.waveRef.current)
+            setGameState("gameOver")
+            setFinalScore(scoreRef.current)
+            setFinalKillCount(killCountRef.current)
+            setFinalWave(waveRef.current)
           }
         }
       }

@@ -41,7 +41,6 @@ import type {
   Enemy,
   EnemyType,
   FlyingSaucer,
-  Boss,
   Projectile,
   PowerUp,
   Particle,
@@ -70,11 +69,10 @@ export function ChickenAlienGame() {
   const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 })
   const [shootButtonPressed, setShootButtonPressed] = useState(false)
 
-  // Game refs 
+  // Game refs
   const playerRef = useRef<Player | null>(null)
   const gameStateRef = useRef<GameState>("menu")
   const keysRef = useRef<Set<string>>(new Set())
-  const lastKeyPressRef = useRef<{ key: string; time: number }>({ key: "", time: 0 })
   const mouseRef = useRef({ x: 0, y: 0, down: false })
   const flyingSaucersRef = useRef<FlyingSaucer[]>([])
   const projectilesRef = useRef<Projectile[]>([])
@@ -131,6 +129,21 @@ export function ChickenAlienGame() {
     })
   }
 
+  // Audio hook
+  const {
+    audioContextRef,
+    audioSystem,
+    initAudio,
+    playSound,
+    eggSplashSound,
+    enemyDeadSound,
+    chickenHitSound,
+    chickenDeathSound,
+    powerUpSound,
+    chargeSound,
+    stunSound,
+  } = useAudio(soundEnabled)
+
   // Shoot
   const shoot = (canvas: HTMLCanvasElement, angle?: number) => {
     const player = playerRef.current
@@ -146,24 +159,7 @@ export function ChickenAlienGame() {
     })
   }
 
-  // Audio hook
-  const {
-    audioContextRef,
-    soundEnabledRef,
-    audioSystem,
-    initAudio,
-    playSound,
-    shootSound,
-    eggSplashSound,
-    enemyDeadSound,
-    chickenHitSound,
-    chickenDeathSound,
-    powerUpSound,
-    chargeSound,
-    stunSound,
-  } = useAudio(soundEnabled)
-
-  // Enemies hook 
+  // Enemies hook
   const {
     enemiesRef,
     spawnEnemies,
@@ -193,7 +189,7 @@ export function ChickenAlienGame() {
     },
   })
 
-  // Player hook 
+  // Player hook
   const { initPlayer, updatePlayer } = usePlayer({
     canvasRef,
     keysRef,
@@ -241,7 +237,7 @@ export function ChickenAlienGame() {
     }
   })
 
-  // Spawn helpers 
+  // Spawn helpers (ПРЕДИ useBoss!)
   const spawnPowerUp = (canvas: HTMLCanvasElement) => {
     spawnPowerUpFromModule(canvas, (powerUp) => powerUpsRef.current.push(powerUp))
   }
@@ -305,9 +301,10 @@ export function ChickenAlienGame() {
     audioContextRef,
     gameStateRef,
     canvasRef,
+    audioSystem,
   ])
 
-  // Boss hook 
+  
   const {
     bossRef,
     spawnBoss,
@@ -471,7 +468,7 @@ export function ChickenAlienGame() {
       saucerSpawnTimerRef.current = 0
     }
 
-    // Update boss 
+    // Update boss (ВЕЧЕ В HOOK!)
     updateBoss(canvas, deltaTime)
 
     // Update enemies
@@ -986,7 +983,9 @@ export function ChickenAlienGame() {
   }
 
   // Store gameLoop in ref for startGame to use
-  gameLoopRef.current = gameLoop
+  useEffect(() => {
+    gameLoopRef.current = gameLoop
+  }, [gameLoop])
 
   // Event listeners
   useEffect(() => {
