@@ -1,3 +1,4 @@
+// hooks/use-game-loop.ts
 
 import { useEffect, useRef, type RefObject } from "react"
 
@@ -12,22 +13,24 @@ export type UseGameLoopOptions = {
 }
 
 export function useGameLoop(options: UseGameLoopOptions) {
+  const { canvasRef, gameStateRef, animationIdRef, update, draw } = options
+
   const gameLoopRef = useRef<GameLoopFn | null>(null)
 
   const gameLoop: GameLoopFn = (currentTime: number) => {
-    const canvas = options.canvasRef.current
+    const canvas = canvasRef.current
     const ctx = canvas?.getContext("2d")
     if (!canvas || !ctx) return
 
-    if (options.gameStateRef.current === "playing") {
+    if (gameStateRef.current === "playing") {
       const rawDeltaTime = currentTime - (gameLoop.lastTime ?? 0) || 16
       const deltaTime = Math.min(Math.max(rawDeltaTime, 1), 34)
-      options.update(canvas, deltaTime)
-      options.draw(ctx, canvas)
+      update(canvas, deltaTime)
+      draw(ctx, canvas)
       gameLoop.lastTime = currentTime
     }
 
-    options.animationIdRef.current = requestAnimationFrame(gameLoop)
+    animationIdRef.current = requestAnimationFrame(gameLoop)
   }
 
   // Store gameLoop in ref (for startGame)
@@ -38,11 +41,11 @@ export function useGameLoop(options: UseGameLoopOptions) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (options.animationIdRef.current) {
-        cancelAnimationFrame(options.animationIdRef.current)
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current)
       }
     }
-  }, [options.animationIdRef])
+  }, [animationIdRef])
 
   return {
     gameLoopRef,

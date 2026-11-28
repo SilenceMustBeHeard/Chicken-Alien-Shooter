@@ -330,7 +330,6 @@ export function ChickenAlienGame() {
     particlesRef,
     floatingTextsRef,
     screenShakeRef,
-    audioContextRef,
     gameStateRef,
     canvasRef,
     audioSystem,
