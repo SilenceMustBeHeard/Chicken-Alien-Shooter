@@ -10,9 +10,9 @@ import { useBoss } from "@/hooks/use-boss"
 import { useProjectiles } from "@/hooks/use-projectiles"
 import { usePowerUps } from "@/hooks/use-powerups"
 import { useGameLoop } from "@/hooks/use-game-loop"
+import { useMobileControls } from "@/hooks/use-mobile-controls"
+import { GameUI } from "@/components/game-ui"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Volume2, VolumeX } from "lucide-react"
 import { createProjectileSpawner } from "@/lib/game/context/impl/create-projectile-spawner"
 import { createEnemySpawner } from "@/lib/game/context/impl/create-enemy-spawner"
 import { createParticleSpawner } from "@/lib/game/context/impl/create-particle-spawner"
@@ -22,10 +22,7 @@ import { createUIController } from "@/lib/game/context/impl/create-ui-controller
 import { getBossBehavior } from "@/lib/game/bosses"
 import { drawPlayer as drawPlayerFromModule } from "@/lib/game/player"
 import { drawAlienCreature as drawAlienCreatureFromModule } from "@/lib/game/enemies"
-import {
-  shoot as shootFromModule,
-  drawProjectile as drawProjectileFromModule,
-} from "@/lib/game/projectiles"
+import { shoot as shootFromModule, drawProjectile as drawProjectileFromModule } from "@/lib/game/projectiles"
 import { drawPowerUpDetailed as drawPowerUpDetailedFromModule } from "@/lib/game/powerups"
 import { drawHud as drawHudFromModule, drawBossBar as drawBossBarFromModule } from "@/lib/game/ui"
 import {
@@ -54,13 +51,21 @@ export function ChickenAlienGame() {
   const [_killCount, setKillCount] = useState(0)
   const [finalKillCount, setFinalKillCount] = useState(0)
   const [soundEnabled, setSoundEnabled] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
   const [finalWave, setFinalWave] = useState(0)
 
-  // Touch controls state
-  const [joystickActive, setJoystickActive] = useState(false)
-  const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 })
-  const [shootButtonPressed, setShootButtonPressed] = useState(false)
+  // Mobile controls hook 
+  const {
+    isMobile,
+    joystickActive,
+    joystickPos,
+    shootButtonPressed,
+    orientationWarning,
+    handleJoystickStart,
+    handleJoystickMove,
+    handleJoystickEnd,
+    handleShootStart,
+    handleShootEnd,
+  } = useMobileControls()
 
   // Game refs
   const playerRef = useRef<Player | null>(null)
@@ -215,7 +220,7 @@ export function ChickenAlienGame() {
     chickenHitSound,
   })
 
-  // Power-ups hook (ПРЕДИ useBoss!)
+  // Power-ups hook
   const {
     powerUpsRef,
     spawnPowerUp,
@@ -225,7 +230,6 @@ export function ChickenAlienGame() {
     playerRef,
     onCollect: (powerUp, player) => {
       powerUpSound()
-
       switch (powerUp.type) {
         case "doubleYolk":
         case "scrambled":
@@ -236,18 +240,15 @@ export function ChickenAlienGame() {
           player.weaponTime = 15000
           addFloatingText(player.x, player.y - 40, powerUp.type.toUpperCase(), "#ffaa00", 20)
           break
-
         case "shield":
           player.shield = true
           player.shieldTime = 10000
           addFloatingText(player.x, player.y - 40, "SHIELD!", "#00ffff", 20)
           break
-
         case "health":
           player.health = Math.min(player.health + 30, player.maxHealth)
           addFloatingText(player.x, player.y - 40, "+30 HP", "#00ff00", 20)
           break
-
         case "speedBoost":
           player.speed = 8
           setTimeout(() => {
@@ -255,7 +256,6 @@ export function ChickenAlienGame() {
           }, 5000)
           addFloatingText(player.x, player.y - 40, "SPEED UP!", "#ff00ff", 20)
           break
-
         case "charge":
           player.chargeCooldown = 0
           addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
@@ -277,11 +277,10 @@ export function ChickenAlienGame() {
     }
   })
 
-  // Flying saucer spawn helper
+  // Flying saucer spawn
   const spawnFlyingSaucer = (canvas: HTMLCanvasElement) => {
     const side = Math.random() < 0.5 ? 0 : 1
     const y = Math.random() * (canvas.height * 0.6) + canvas.height * 0.1
-
     flyingSaucersRef.current.push({
       x: side === 0 ? -30 : canvas.width + 30,
       y,
@@ -330,17 +329,14 @@ export function ChickenAlienGame() {
     particlesRef,
     floatingTextsRef,
     screenShakeRef,
+    audioContextRef,
     gameStateRef,
     canvasRef,
     audioSystem,
   ])
 
   // Boss hook
-  const {
-    bossRef,
-    spawnBoss,
-    updateBoss,
-  } = useBoss({
+  const { bossRef, spawnBoss, updateBoss } = useBoss({
     canvasRef,
     playerRef,
     enemiesRef,
@@ -365,7 +361,7 @@ export function ChickenAlienGame() {
     setGameState,
   })
 
-  // Projectiles hook (зависи от bossRef)
+  // Projectiles hook
   const { updateProjectiles } = useProjectiles({
     projectilesRef,
     playerRef,
@@ -426,7 +422,6 @@ export function ChickenAlienGame() {
       if (boss.isArmored && boss.armor !== undefined && boss.armor > 0) {
         boss.armor -= proj.damage
         createParticles(proj.x, proj.y, "#94a3b8")
-
         if (boss.armor <= 0) {
           boss.armor = 0
           boss.isArmored = false
@@ -467,7 +462,6 @@ export function ChickenAlienGame() {
     },
     onEnemyHit: (proj, enemy) => {
       const damage = proj.damage
-
       enemy.health -= damage
       enemy.hitFlash = 5
 
@@ -551,10 +545,23 @@ export function ChickenAlienGame() {
     setScore(0)
   }
 
-  // Effect 1: Detect mobile
-  useEffect(() => {
-    setIsMobile("ontouchstart" in window)
-  }, [])
+  // Fullscreen + orientation lock (self-contained)
+  const enterMobileFullscreen = () => {
+    if (!isMobile) return
+    try {
+      document.documentElement.requestFullscreen?.().catch(() => {})
+    } catch {
+      // ignore
+    }
+    try {
+      const screenOrientation = screen.orientation as unknown as {
+        lock?: (orientation: string) => Promise<void>
+      }
+      screenOrientation.lock?.("landscape").catch(() => {})
+    } catch {
+      // ignore
+    }
+  }
 
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!joystickActive && gameState === "playing") {
@@ -588,7 +595,7 @@ export function ChickenAlienGame() {
     mouseRef.current.down = false
   }
 
-  // Update game state
+  // Update
   const update = (canvas: HTMLCanvasElement, deltaTime: number) => {
     const player = playerRef.current
     if (!player) return
@@ -612,16 +619,13 @@ export function ChickenAlienGame() {
       screenShakeYRef.current = 0
     }
 
-    // Update player movement
     updatePlayer(canvas, deltaTime)
 
-    // Spawn boss
     if (waveRef.current - lastBossWaveRef.current >= 5 && !bossRef.current) {
       spawnBoss(canvas)
       lastBossWaveRef.current = waveRef.current
     }
 
-    // Spawn enemies (disabled during boss fight)
     if (!bossRef.current) {
       spawnTimerRef.current += deltaTime
       if (spawnTimerRef.current > currentSpawnInterval) {
@@ -642,17 +646,13 @@ export function ChickenAlienGame() {
       powerUpTimerRef.current = 0
     }
 
-    // Spawn flying saucers
     saucerSpawnTimerRef.current += deltaTime
     if (saucerSpawnTimerRef.current > 12000 && flyingSaucersRef.current.length < 2) {
       spawnFlyingSaucer(canvas)
       saucerSpawnTimerRef.current = 0
     }
 
-    // Update boss
     updateBoss(canvas, deltaTime)
-
-    // Update enemies
     updateEnemies(canvas, deltaTime, frameScale)
 
     flyingSaucersRef.current = flyingSaucersRef.current.filter((saucer) => {
@@ -695,7 +695,6 @@ export function ChickenAlienGame() {
       return saucer.health > 0
     })
 
-    // Check if game over
     if (player.health <= 0) {
       chickenDeathSound()
       setFinalScore(scoreRef.current)
@@ -705,13 +704,9 @@ export function ChickenAlienGame() {
       setFinalWave(waveRef.current)
     }
 
-    // Update projectiles
     updateProjectiles(canvas, player, deltaTime)
-
-    // Update power-ups
     updatePowerUps(player, deltaTime)
 
-    // Update particles
     particlesRef.current = particlesRef.current.filter((particle) => {
       particle.x += particle.vx
       particle.y += particle.vy
@@ -727,14 +722,13 @@ export function ChickenAlienGame() {
       return text.life > 0
     })
 
-    // Update score (survival time)
     scoreRef.current += 1
     if (scoreRef.current % 60 === 0) {
       setScore(scoreRef.current)
     }
   }
 
-  // Draw game
+  // Draw
   const draw = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     ctx.save()
     ctx.translate(screenShakeXRef.current, screenShakeYRef.current)
@@ -924,7 +918,7 @@ export function ChickenAlienGame() {
     ctx.restore()
   }
 
-  // Game loop hook (зависи от update и draw)
+  // Game loop
   const { gameLoopRef } = useGameLoop({
     canvasRef,
     gameStateRef,
@@ -933,19 +927,19 @@ export function ChickenAlienGame() {
     draw,
   })
 
-  // startGame (зависи от gameLoopRef!)
+  // startGame
   const startGame = () => {
     initAudio()
     initPlayer()
     initGameState()
     gameStateRef.current = "playing"
     setGameState("playing")
+    enterMobileFullscreen()
     if (animationIdRef.current === null && gameLoopRef.current) {
       animationIdRef.current = requestAnimationFrame(gameLoopRef.current)
     }
   }
 
-  // restartGame
   const restartGame = () => {
     startGame()
   }
@@ -955,7 +949,6 @@ export function ChickenAlienGame() {
     const handleKeyDown = (e: KeyboardEvent) => {
       keysRef.current.add(e.key.toLowerCase())
     }
-
     const handleKeyUp = (e: KeyboardEvent) => {
       keysRef.current.delete(e.key.toLowerCase())
     }
@@ -972,147 +965,54 @@ export function ChickenAlienGame() {
     }
   }, [])
 
-  // Handle touch controls for joystick
-  const handleJoystickStart = (e: React.TouchEvent) => {
-    e.preventDefault()
-    setJoystickActive(true)
-  }
-
-  const handleJoystickMove = (e: React.TouchEvent) => {
-    if (!joystickActive) return
-    e.preventDefault()
-
-    const touch = e.touches[0]
-    const joystick = e.currentTarget as HTMLElement
-    const rect = joystick.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    const centerY = rect.top + rect.height / 2
-
-    const dx = touch.clientX - centerX
-    const dy = touch.clientY - centerY
-    const distance = Math.sqrt(dx * dx + dy * dy)
-    const maxDistance = 40
-
-    if (distance > 0) {
-      const normalized = Math.min(distance, maxDistance) / maxDistance
-      setJoystickPos({
-        x: (dx / distance) * normalized,
-        y: (dy / distance) * normalized,
-      })
-    }
-  }
-
-  const handleJoystickEnd = () => {
-    setJoystickActive(false)
-    setJoystickPos({ x: 0, y: 0 })
-  }
-
   return (
-    <div className="relative w-full h-screen bg-gradient-to-b from-slate-900 to-slate-950 flex items-center justify-center overflow-hidden">
-      <canvas
-        ref={canvasRef}
-        className="border-2 border-slate-700 rounded-lg shadow-2xl"
+    <>
+      <GameUI
+        gameState={gameState}
+        finalScore={finalScore}
+        finalKillCount={finalKillCount}
+        finalWave={finalWave}
+        soundEnabled={soundEnabled}
+        isMobile={isMobile}
+        joystickActive={joystickActive}
+        joystickPos={joystickPos}
+        shootButtonPressed={shootButtonPressed}
+        onStartGame={startGame}
+        onRestartGame={restartGame}
+        onToggleSound={() => setSoundEnabled(!soundEnabled)}
+        onInitAudio={initAudio}
+        onJoystickStart={handleJoystickStart}
+        onJoystickMove={handleJoystickMove}
+        onJoystickEnd={handleJoystickEnd}
+        onShootStart={handleShootStart}
+        onShootEnd={handleShootEnd}
+        canvasRef={canvasRef}
         onMouseMove={handleMouseMove}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onTouchMove={handleTouchMove}
-        onTouchStart={() => {
-          if (gameState === "playing") {
-            setShootButtonPressed(true)
-          }
-        }}
-        onTouchEnd={() => {
-          if (gameState === "playing") {
-            setShootButtonPressed(false)
-          }
-        }}
+ onTouchStartCanvas={() => {
+  if (gameState === "playing") {
+    handleShootStart()
+  }
+}}
+onTouchEndCanvas={() => {
+  if (gameState === "playing") {
+    handleShootEnd()
+  }
+}}
       />
 
-      {gameState === "menu" && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center backdrop-blur-sm transition-opacity duration-500">
-          <div className="text-center space-y-6 px-4">
-            <h1 className="text-6xl font-bold text-yellow-400 drop-shadow-lg animate-pulse">Chicken vs Aliens</h1>
-            <p className="text-xl text-gray-300 max-w-md mx-auto">
-              Survive as long as possible against the alien invasion!
-            </p>
-            <div className="space-y-2 text-sm text-gray-400">
-              <p>WASD or Arrow Keys to move</p>
-              <p>Mouse or Touch to aim and shoot</p>
-              <p>SPACE for Caca-Doo stun</p>
-              <p>Q for Charge</p>
-            </div>
-            <button
-              onClick={startGame}
-              className="px-8 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-xl rounded-lg shadow-lg transition-all duration-200 hover:scale-105 active:scale-95"
-            >
-              Play
-            </button>
+      {/* Orientation warning (mobile only) */}
+      {orientationWarning && isMobile && (
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50">
+          <div className="text-center text-white px-6">
+            <p className="text-5xl mb-6">🔄</p>
+            <p className="text-2xl font-bold mb-2">Flip Your Device</p>
+            <p className="text-lg text-gray-400">The game is in landscape mode</p>
           </div>
         </div>
       )}
-
-      {gameState === "gameOver" && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center backdrop-blur-sm transition-opacity duration-500">
-          <div className="text-center space-y-6 px-4">
-            <h2 className="text-5xl font-bold text-red-500 drop-shadow-lg">Game Over</h2>
-            <div className="space-y-3 text-2xl text-white">
-              <p className="text-3xl font-bold text-yellow-400">
-                Survival Time:{" "}
-                {Math.floor(finalScore / 60 / 60)
-                  .toString()
-                  .padStart(2, "0")}
-                :{(Math.floor(finalScore / 60) % 60).toString().padStart(2, "0")}
-              </p>
-              <p className="text-2xl text-green-400">Total Kills: {finalKillCount}</p>
-              <p className="text-xl text-gray-400">Waves Survived: {finalWave}</p>
-            </div>
-            <button
-              onClick={restartGame}
-              className="px-8 py-4 bg-green-500 hover:bg-green-400 text-black font-bold text-xl rounded-lg shadow-lg transition-all duration-200 hover:scale-105 active:scale-95"
-            >
-              Restart
-            </button>
-          </div>
-        </div>
-      )}
-
-      <Button
-        onClick={() => {
-          initAudio()
-          setSoundEnabled(!soundEnabled)
-        }}
-        size="icon"
-        variant="secondary"
-        className="absolute right-2 top-2 bg-purple-900/80 hover:bg-purple-800"
-      >
-        {soundEnabled ? <Volume2 /> : <VolumeX />}
-      </Button>
-
-      {isMobile && gameState === "playing" && (
-        <>
-          <div
-            className="absolute bottom-4 left-4 flex h-28 w-28 items-center justify-center rounded-full border-2 border-white/30 bg-white/10 backdrop-blur-sm"
-            onTouchStart={handleJoystickStart}
-            onTouchMove={handleJoystickMove}
-            onTouchEnd={handleJoystickEnd}
-          >
-            <div
-              className="h-12 w-12 rounded-full border-2 border-white/50 bg-white/70 shadow-lg"
-              style={{
-                transform: `translate(${joystickPos.x * 40}px, ${joystickPos.y * 40}px)`,
-              }}
-            />
-          </div>
-
-          <button
-            className="absolute bottom-4 right-4 flex h-20 w-20 items-center justify-center rounded-full border-2 border-red-300 bg-gradient-to-br from-red-500 to-red-700 text-3xl shadow-lg backdrop-blur-sm active:from-red-600 active:to-red-800 active:shadow-xl"
-            onTouchStart={() => setShootButtonPressed(true)}
-            onTouchEnd={() => setShootButtonPressed(false)}
-          >
-            🥚
-          </button>
-        </>
-      )}
-    </div>
+    </>
   )
 }
