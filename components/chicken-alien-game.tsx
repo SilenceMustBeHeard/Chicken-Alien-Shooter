@@ -7,6 +7,9 @@ import { useAudio } from "@/hooks/use-audio"
 import { usePlayer } from "@/hooks/use-player"
 import { useEnemies } from "@/hooks/use-enemies"
 import { useBoss } from "@/hooks/use-boss"
+import { useProjectiles } from "@/hooks/use-projectiles"
+import { usePowerUps } from "@/hooks/use-powerups"
+import { useGameLoop } from "@/hooks/use-game-loop"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Volume2, VolumeX } from "lucide-react"
@@ -21,15 +24,9 @@ import { drawPlayer as drawPlayerFromModule } from "@/lib/game/player"
 import { drawAlienCreature as drawAlienCreatureFromModule } from "@/lib/game/enemies"
 import {
   shoot as shootFromModule,
-  updateProjectiles as updateProjectilesFromModule,
   drawProjectile as drawProjectileFromModule,
 } from "@/lib/game/projectiles"
-import {
-  spawnPowerUp as spawnPowerUpFromModule,
-  spawnWeaponPowerUp as spawnWeaponPowerUpFromModule,
-  updatePowerUps as updatePowerUpsFromModule,
-  drawPowerUpDetailed as drawPowerUpDetailedFromModule,
-} from "@/lib/game/powerups"
+import { drawPowerUpDetailed as drawPowerUpDetailedFromModule } from "@/lib/game/powerups"
 import { drawHud as drawHudFromModule, drawBossBar as drawBossBarFromModule } from "@/lib/game/ui"
 import {
   drawBackground as drawBackgroundFromModule,
@@ -42,16 +39,12 @@ import type {
   EnemyType,
   FlyingSaucer,
   Projectile,
-  PowerUp,
   Particle,
   FloatingText,
   GameState,
   Player,
 } from "@/lib/game/types"
 import { DIFFICULTY_SCALING, ALIEN_COLORS } from "@/lib/game/constants"
-
-// Game loop type
-type GameLoopFn = ((currentTime: number) => void) & { lastTime?: number }
 
 export function ChickenAlienGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -76,7 +69,6 @@ export function ChickenAlienGame() {
   const mouseRef = useRef({ x: 0, y: 0, down: false })
   const flyingSaucersRef = useRef<FlyingSaucer[]>([])
   const projectilesRef = useRef<Projectile[]>([])
-  const powerUpsRef = useRef<PowerUp[]>([])
   const particlesRef = useRef<Particle[]>([])
   const floatingTextsRef = useRef<FloatingText[]>([])
   const killCountRef = useRef(0)
@@ -91,7 +83,6 @@ export function ChickenAlienGame() {
   const screenShakeYRef = useRef(0)
   const gameTimeRef = useRef(0)
   const animationIdRef = useRef<number | null>(null)
-  const gameLoopRef = useRef<GameLoopFn | null>(null)
 
   const getAlienColor = (type: EnemyType): string => {
     return ALIEN_COLORS[type] ?? "#00ff00"
@@ -167,7 +158,7 @@ export function ChickenAlienGame() {
   } = useEnemies({
     canvasRef,
     playerRef,
-    createParticles: (x, y, color) => createParticles(x, y, color),
+    createParticles,
     onEnemyContact: (enemy: Enemy, damage: number) => {
       const player = playerRef.current
       if (!player) return
@@ -224,6 +215,55 @@ export function ChickenAlienGame() {
     chickenHitSound,
   })
 
+  // Power-ups hook (ПРЕДИ useBoss!)
+  const {
+    powerUpsRef,
+    spawnPowerUp,
+    spawnWeaponPowerUp,
+    updatePowerUps,
+  } = usePowerUps({
+    playerRef,
+    onCollect: (powerUp, player) => {
+      powerUpSound()
+
+      switch (powerUp.type) {
+        case "doubleYolk":
+        case "scrambled":
+        case "hardBoiled":
+        case "explosive":
+        case "golden":
+          player.weaponType = powerUp.type
+          player.weaponTime = 15000
+          addFloatingText(player.x, player.y - 40, powerUp.type.toUpperCase(), "#ffaa00", 20)
+          break
+
+        case "shield":
+          player.shield = true
+          player.shieldTime = 10000
+          addFloatingText(player.x, player.y - 40, "SHIELD!", "#00ffff", 20)
+          break
+
+        case "health":
+          player.health = Math.min(player.health + 30, player.maxHealth)
+          addFloatingText(player.x, player.y - 40, "+30 HP", "#00ff00", 20)
+          break
+
+        case "speedBoost":
+          player.speed = 8
+          setTimeout(() => {
+            if (playerRef.current) playerRef.current.speed = 5
+          }, 5000)
+          addFloatingText(player.x, player.y - 40, "SPEED UP!", "#ff00ff", 20)
+          break
+
+        case "charge":
+          player.chargeCooldown = 0
+          addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
+          break
+      }
+    },
+  })
+
   // Canvas hook
   useCanvas(canvasRef, playerRef)
 
@@ -237,15 +277,7 @@ export function ChickenAlienGame() {
     }
   })
 
-  // Spawn helpers (ПРЕДИ useBoss!)
-  const spawnPowerUp = (canvas: HTMLCanvasElement) => {
-    spawnPowerUpFromModule(canvas, (powerUp) => powerUpsRef.current.push(powerUp))
-  }
-
-  const spawnWeaponPowerUp = (x: number, y: number) => {
-    spawnWeaponPowerUpFromModule(x, y, (powerUp) => powerUpsRef.current.push(powerUp))
-  }
-
+  // Flying saucer spawn helper
   const spawnFlyingSaucer = (canvas: HTMLCanvasElement) => {
     const side = Math.random() < 0.5 ? 0 : 1
     const y = Math.random() * (canvas.height * 0.6) + canvas.height * 0.1
@@ -261,7 +293,7 @@ export function ChickenAlienGame() {
     })
   }
 
-  // gameContext 
+  // gameContext
   const gameContext = useMemo(() => {
     const projectiles = createProjectileSpawner(projectilesRef)
     const enemies = createEnemySpawner(
@@ -298,13 +330,12 @@ export function ChickenAlienGame() {
     particlesRef,
     floatingTextsRef,
     screenShakeRef,
-    audioContextRef,
     gameStateRef,
     canvasRef,
     audioSystem,
   ])
 
-  
+  // Boss hook
   const {
     bossRef,
     spawnBoss,
@@ -334,6 +365,173 @@ export function ChickenAlienGame() {
     setGameState,
   })
 
+  // Projectiles hook (зависи от bossRef)
+  const { updateProjectiles } = useProjectiles({
+    projectilesRef,
+    playerRef,
+    bossRef,
+    enemiesRef,
+    playSound,
+    onLeviathanWaveHit: (proj, player) => {
+      player.health -= 50
+      player.invincibleTime = 120
+      chickenHitSound()
+      addScreenShake(40)
+      addFloatingText(player.x, player.y - 40, "-50", "#ff0000", 32)
+
+      const waveDx = proj.x - player.x
+      const waveDy = proj.y - player.y
+      const pushAngle = Math.atan2(waveDy, waveDx)
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const mapDiagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
+      const kickDistance = mapDiagonal * 1.2
+
+      player.x += Math.cos(pushAngle) * kickDistance
+      player.y += Math.sin(pushAngle) * kickDistance
+      player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
+      player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
+
+      createParticles(player.x, player.y, "#a855f7")
+      playSound(150, 0.4, "sawtooth")
+      playSound(80, 0.6, "triangle")
+
+      if (player.health <= 0) {
+        chickenDeathSound()
+        gameStateRef.current = "gameOver"
+        setGameState("gameOver")
+        setFinalScore(scoreRef.current)
+        setFinalKillCount(killCountRef.current)
+        setFinalWave(waveRef.current)
+      }
+    },
+    onEnemyProjectileHitPlayer: (proj, player) => {
+      player.health -= proj.damage
+      player.invincibleTime = 30
+      chickenHitSound()
+      addScreenShake(6)
+      addFloatingText(player.x, player.y - 30, `-${proj.damage}`, "#ff4444", 18)
+      createParticles(proj.x, proj.y, proj.color || "#28f0ff")
+
+      if (player.health <= 0) {
+        chickenDeathSound()
+        gameStateRef.current = "gameOver"
+        setGameState("gameOver")
+        setFinalScore(scoreRef.current)
+        setFinalKillCount(killCountRef.current)
+        setFinalWave(waveRef.current)
+      }
+    },
+    onBossHit: (proj, boss) => {
+      if (boss.isArmored && boss.armor !== undefined && boss.armor > 0) {
+        boss.armor -= proj.damage
+        createParticles(proj.x, proj.y, "#94a3b8")
+
+        if (boss.armor <= 0) {
+          boss.armor = 0
+          boss.isArmored = false
+          addFloatingText(boss.x, boss.y - 50, "ARMOR BROKEN!", "#fbbf24", 28)
+          addScreenShake(20)
+          playSound(150, 0.5, "sawtooth")
+        }
+      } else {
+        boss.health -= proj.damage
+      }
+
+      eggSplashSound()
+      createParticles(boss.x, boss.y, "#ff4444")
+      addFloatingText(boss.x, boss.y - 30, `-${proj.damage}`, "#ff9999", 18)
+      addScreenShake(4)
+
+      if (proj.explosive) {
+        createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+        playSound(150, 0.2, "sawtooth")
+        addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
+      }
+
+      if (boss.health <= 0) {
+        enemyDeadSound()
+        scoreRef.current += 500
+        setScore(scoreRef.current)
+        killCountRef.current += 1
+        setKillCount(killCountRef.current)
+        createParticles(boss.x, boss.y, "#ff0000")
+        addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
+        addScreenShake(15)
+        for (let p = 0; p < 3; p++) {
+          spawnWeaponPowerUp(boss.x + (Math.random() - 0.5) * 80, boss.y + (Math.random() - 0.5) * 80)
+        }
+        bossRef.current = null
+        lastBossWaveRef.current = waveRef.current
+      }
+    },
+    onEnemyHit: (proj, enemy) => {
+      const damage = proj.damage
+
+      enemy.health -= damage
+      enemy.hitFlash = 5
+
+      eggSplashSound()
+      createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
+      addFloatingText(enemy.x, enemy.y - 20, `-${damage}`, "#ff9999", 16)
+
+      if (!proj.piercing) {
+        proj.dead = true
+      }
+
+      if (enemy.health <= 0) {
+        enemyDeadSound()
+        scoreRef.current += 10
+        setScore(scoreRef.current)
+        killCountRef.current += 1
+        setKillCount(killCountRef.current)
+        createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
+        addFloatingText(enemy.x, enemy.y - 30, "+10", "#ffff00", 20)
+        addScreenShake(3)
+
+        if (enemy.type === "splitter" && enemy.radius > 8) {
+          for (let j = 0; j < 2; j++) {
+            const angle = (Math.PI / 3) * j + (Math.random() * Math.PI) / 6
+            enemiesRef.current.push({
+              x: enemy.x + Math.cos(angle) * 20,
+              y: enemy.y + Math.sin(angle) * 20,
+              radius: 8,
+              speed: enemy.speed * 1.2,
+              health: 1,
+              maxHealth: 1,
+              groupId: enemy.groupId,
+              type: "grunt",
+              alienType: "grunt",
+              color: getAlienColor("grunt"),
+            })
+          }
+        }
+
+        const index = enemiesRef.current.indexOf(enemy)
+        if (index > -1) {
+          enemiesRef.current.splice(index, 1)
+        }
+      }
+    },
+    createParticles,
+    addFloatingText,
+    addScreenShake,
+    eggSplashSound,
+    enemyDeadSound,
+    chickenHitSound,
+    chickenDeathSound,
+    setGameOver: () => {
+      gameStateRef.current = "gameOver"
+      setGameState("gameOver")
+    },
+    spawnWeaponPowerUp,
+    getAlienColor,
+    scoreRef,
+    setScore,
+    killCountRef,
+    setKillCount,
+  })
+
   // initGameState
   const initGameState = () => {
     enemiesRef.current = []
@@ -351,23 +549,6 @@ export function ChickenAlienGame() {
     lastBossWaveRef.current = 0
     screenShakeRef.current = 0
     setScore(0)
-  }
-
-  // startGame
-  const startGame = () => {
-    initAudio()
-    initPlayer()
-    initGameState()
-    gameStateRef.current = "playing"
-    setGameState("playing")
-    if (animationIdRef.current === null && gameLoopRef.current) {
-      animationIdRef.current = requestAnimationFrame(gameLoopRef.current)
-    }
-  }
-
-  // restartGame
-  const restartGame = () => {
-    startGame()
   }
 
   // Effect 1: Detect mobile
@@ -461,14 +642,14 @@ export function ChickenAlienGame() {
       powerUpTimerRef.current = 0
     }
 
-    // Spawn flying saucers more frequently
+    // Spawn flying saucers
     saucerSpawnTimerRef.current += deltaTime
     if (saucerSpawnTimerRef.current > 12000 && flyingSaucersRef.current.length < 2) {
       spawnFlyingSaucer(canvas)
       saucerSpawnTimerRef.current = 0
     }
 
-    // Update boss (ВЕЧЕ В HOOK!)
+    // Update boss
     updateBoss(canvas, deltaTime)
 
     // Update enemies
@@ -524,226 +705,11 @@ export function ChickenAlienGame() {
       setFinalWave(waveRef.current)
     }
 
-    // Update projectiles and check enemy collision
-    projectilesRef.current = updateProjectilesFromModule({
-      projectiles: projectilesRef.current,
-      player,
-      canvas,
-      deltaTime,
-      bossRef,
-      enemiesRef,
+    // Update projectiles
+    updateProjectiles(canvas, player, deltaTime)
 
-      onLeviathanWaveHit: (proj, player) => {
-        player.health -= 50
-        player.invincibleTime = 120
-        chickenHitSound()
-        addScreenShake(40)
-        addFloatingText(player.x, player.y - 40, "-50", "#ff0000", 32)
-
-        const waveDx = proj.x - player.x
-        const waveDy = proj.y - player.y
-        const pushAngle = Math.atan2(waveDy, waveDx)
-        const mapDiagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2)
-        const kickDistance = mapDiagonal * 1.2
-
-        player.x += Math.cos(pushAngle) * kickDistance
-        player.y += Math.sin(pushAngle) * kickDistance
-        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x))
-        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y))
-
-        createParticles(player.x, player.y, "#a855f7")
-        playSound(150, 0.4, "sawtooth")
-        playSound(80, 0.6, "triangle")
-
-        if (player.health <= 0) {
-          chickenDeathSound()
-          gameStateRef.current = "gameOver"
-          setGameState("gameOver")
-          setFinalScore(scoreRef.current)
-          setFinalKillCount(killCountRef.current)
-          setFinalWave(waveRef.current)
-        }
-      },
-
-      onHiveLordHit: () => {},
-      onHiveSpawnHit: () => {},
-
-      onEnemyProjectileHitPlayer: (proj, player) => {
-        player.health -= proj.damage
-        player.invincibleTime = 30
-        chickenHitSound()
-        addScreenShake(6)
-        addFloatingText(player.x, player.y - 30, `-${proj.damage}`, "#ff4444", 18)
-        createParticles(proj.x, proj.y, proj.color || "#28f0ff")
-
-        if (player.health <= 0) {
-          chickenDeathSound()
-          gameStateRef.current = "gameOver"
-          setGameState("gameOver")
-          setFinalScore(scoreRef.current)
-          setFinalKillCount(killCountRef.current)
-          setFinalWave(waveRef.current)
-        }
-      },
-
-      onBossHit: (proj, boss) => {
-        if (boss.isArmored && boss.armor !== undefined && boss.armor > 0) {
-          boss.armor -= proj.damage
-          createParticles(proj.x, proj.y, "#94a3b8")
-
-          if (boss.armor <= 0) {
-            boss.armor = 0
-            boss.isArmored = false
-            addFloatingText(boss.x, boss.y - 50, "ARMOR BROKEN!", "#fbbf24", 28)
-            addScreenShake(20)
-            playSound(150, 0.5, "sawtooth")
-          }
-        } else {
-          boss.health -= proj.damage
-        }
-
-        eggSplashSound()
-        createParticles(boss.x, boss.y, "#ff4444")
-        addFloatingText(boss.x, boss.y - 30, `-${proj.damage}`, "#ff9999", 18)
-        addScreenShake(4)
-
-        if (proj.explosive) {
-          createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
-          playSound(150, 0.2, "sawtooth")
-          addFloatingText(proj.x, proj.y - 20, "BOOM!", "#ff6600", 20)
-        }
-
-        if (boss.health <= 0) {
-          enemyDeadSound()
-          scoreRef.current += 500
-          setScore(scoreRef.current)
-          killCountRef.current += 1
-          setKillCount(killCountRef.current)
-          createParticles(boss.x, boss.y, "#ff0000")
-          addFloatingText(boss.x, boss.y - 40, "+500", "#ffff00", 28)
-          addScreenShake(15)
-          for (let p = 0; p < 3; p++) {
-            spawnWeaponPowerUp(boss.x + (Math.random() - 0.5) * 80, boss.y + (Math.random() - 0.5) * 80)
-          }
-          bossRef.current = null
-          lastBossWaveRef.current = waveRef.current
-        }
-      },
-
-      onEnemyHit: (proj, enemy) => {
-        const damage = proj.damage
-
-        enemy.health -= damage
-        enemy.hitFlash = 5
-
-        eggSplashSound()
-        createParticles(proj.x, proj.y, proj.color ?? "#ffffff")
-        addFloatingText(enemy.x, enemy.y - 20, `-${damage}`, "#ff9999", 16)
-
-        if (!proj.piercing) {
-          proj.dead = true
-        }
-
-        if (enemy.health <= 0) {
-          enemyDeadSound()
-          scoreRef.current += 10
-          setScore(scoreRef.current)
-          killCountRef.current += 1
-          setKillCount(killCountRef.current)
-          createParticles(enemy.x, enemy.y, enemy.color || "#ff00ff")
-          addFloatingText(enemy.x, enemy.y - 30, "+10", "#ffff00", 20)
-          addScreenShake(3)
-
-          if (enemy.type === "splitter" && enemy.radius > 8) {
-            for (let j = 0; j < 2; j++) {
-              const angle = (Math.PI / 3) * j + (Math.random() * Math.PI) / 6
-              enemiesRef.current.push({
-                x: enemy.x + Math.cos(angle) * 20,
-                y: enemy.y + Math.sin(angle) * 20,
-                radius: 8,
-                speed: enemy.speed * 1.2,
-                health: 1,
-                maxHealth: 1,
-                groupId: enemy.groupId,
-                type: "grunt",
-                alienType: "grunt",
-                color: getAlienColor("grunt"),
-              })
-            }
-          }
-
-          const index = enemiesRef.current.indexOf(enemy)
-          if (index > -1) {
-            enemiesRef.current.splice(index, 1)
-          }
-        }
-      },
-
-      createParticles,
-      addFloatingText,
-      addScreenShake,
-      playSound,
-      eggSplashSound,
-      enemyDeadSound,
-      chickenHitSound,
-      chickenDeathSound,
-      setGameOver: () => {
-        gameStateRef.current = "gameOver"
-        setGameState("gameOver")
-      },
-      spawnWeaponPowerUp,
-      getAlienColor,
-      scoreRef,
-      setScore,
-      killCountRef,
-      setKillCount,
-    })
-
-    // Check collisions between player and power-ups
-    powerUpsRef.current = updatePowerUpsFromModule({
-      powerUps: powerUpsRef.current,
-      player,
-      deltaTime,
-      onCollect: (powerUp) => {
-        powerUpSound()
-
-        switch (powerUp.type) {
-          case "doubleYolk":
-          case "scrambled":
-          case "hardBoiled":
-          case "explosive":
-          case "golden":
-            player.weaponType = powerUp.type
-            player.weaponTime = 15000
-            addFloatingText(player.x, player.y - 40, powerUp.type.toUpperCase(), "#ffaa00", 20)
-            break
-
-          case "shield":
-            player.shield = true
-            player.shieldTime = 10000
-            addFloatingText(player.x, player.y - 40, "SHIELD!", "#00ffff", 20)
-            break
-
-          case "health":
-            player.health = Math.min(player.health + 30, player.maxHealth)
-            addFloatingText(player.x, player.y - 40, "+30 HP", "#00ff00", 20)
-            break
-
-          case "speedBoost":
-            player.speed = 8
-            setTimeout(() => {
-              if (playerRef.current) playerRef.current.speed = 5
-            }, 5000)
-            addFloatingText(player.x, player.y - 40, "SPEED UP!", "#ff00ff", 20)
-            break
-
-          case "charge":
-            player.chargeCooldown = 0
-            addFloatingText(player.x, player.y - 40, "CHARGE READY!", "#ff4400", 22)
-            break
-        }
-      },
-    })
+    // Update power-ups
+    updatePowerUps(player, deltaTime)
 
     // Update particles
     particlesRef.current = particlesRef.current.filter((particle) => {
@@ -773,7 +739,6 @@ export function ChickenAlienGame() {
     ctx.save()
     ctx.translate(screenShakeXRef.current, screenShakeYRef.current)
 
-    // Clear canvas with gradient background
     drawBackgroundFromModule(ctx, canvas)
 
     const player = playerRef.current
@@ -784,7 +749,6 @@ export function ChickenAlienGame() {
 
     drawParticlesFromModule(ctx, particlesRef.current)
 
-    // Draw enemies
     const animationTime = Date.now()
     enemiesRef.current.forEach((enemy) => {
       drawAlienCreatureFromModule(ctx, enemy, animationTime)
@@ -849,7 +813,6 @@ export function ChickenAlienGame() {
       ctx.scale(bossBreath, bossBreath)
       ctx.translate(-boss.x, -boss.y)
 
-      // Boss shadow
       ctx.fillStyle = "rgba(0, 0, 0, 0.3)"
       ctx.beginPath()
       ctx.ellipse(boss.x, boss.y + boss.radius + 10, boss.radius * 0.8, boss.radius * 0.3, 0, 0, Math.PI * 2)
@@ -890,7 +853,6 @@ export function ChickenAlienGame() {
       ctx.lineWidth = 3
       ctx.stroke()
 
-      // Start of boss drawing
       {
         const behavior = getBossBehavior(boss.type)
         const playerForDraw = playerRef.current
@@ -900,7 +862,6 @@ export function ChickenAlienGame() {
           ctx.restore()
         }
       }
-      // End of boss drawing
 
       drawBossBarFromModule(ctx, canvas, boss)
 
@@ -925,7 +886,6 @@ export function ChickenAlienGame() {
       ctx.shadowBlur = 0
     }
 
-    // Draw player
     drawPlayerFromModule(ctx, player)
 
     enemiesRef.current.forEach((enemy) => {
@@ -953,7 +913,6 @@ export function ChickenAlienGame() {
       drawPowerUpDetailedFromModule(ctx, powerUp)
     })
 
-    // Draw UI
     drawHudFromModule(ctx, {
       player,
       canvas,
@@ -965,27 +924,31 @@ export function ChickenAlienGame() {
     ctx.restore()
   }
 
-  // Game loop
-  const gameLoop: GameLoopFn = (currentTime: number) => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext("2d")
-    if (!canvas || !ctx) return
+  // Game loop hook (зависи от update и draw)
+  const { gameLoopRef } = useGameLoop({
+    canvasRef,
+    gameStateRef,
+    animationIdRef,
+    update,
+    draw,
+  })
 
-    if (gameStateRef.current === "playing") {
-      const rawDeltaTime = currentTime - (gameLoop.lastTime ?? 0) || 16
-      const deltaTime = Math.min(Math.max(rawDeltaTime, 1), 34)
-      update(canvas, deltaTime)
-      draw(ctx, canvas)
-      gameLoop.lastTime = currentTime
+  // startGame (зависи от gameLoopRef!)
+  const startGame = () => {
+    initAudio()
+    initPlayer()
+    initGameState()
+    gameStateRef.current = "playing"
+    setGameState("playing")
+    if (animationIdRef.current === null && gameLoopRef.current) {
+      animationIdRef.current = requestAnimationFrame(gameLoopRef.current)
     }
-
-    animationIdRef.current = requestAnimationFrame(gameLoop)
   }
 
-  // Store gameLoop in ref for startGame to use
-  useEffect(() => {
-    gameLoopRef.current = gameLoop
-  }, [gameLoop])
+  // restartGame
+  const restartGame = () => {
+    startGame()
+  }
 
   // Event listeners
   useEffect(() => {
@@ -1065,7 +1028,6 @@ export function ChickenAlienGame() {
         }}
       />
 
-      {/* Start Menu */}
       {gameState === "menu" && (
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center backdrop-blur-sm transition-opacity duration-500">
           <div className="text-center space-y-6 px-4">
@@ -1089,7 +1051,6 @@ export function ChickenAlienGame() {
         </div>
       )}
 
-      {/* Game Over */}
       {gameState === "gameOver" && (
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center backdrop-blur-sm transition-opacity duration-500">
           <div className="text-center space-y-6 px-4">
@@ -1115,7 +1076,6 @@ export function ChickenAlienGame() {
         </div>
       )}
 
-      {/* Sound Toggle */}
       <Button
         onClick={() => {
           initAudio()
@@ -1128,7 +1088,6 @@ export function ChickenAlienGame() {
         {soundEnabled ? <Volume2 /> : <VolumeX />}
       </Button>
 
-      {/* Mobile Controls */}
       {isMobile && gameState === "playing" && (
         <>
           <div

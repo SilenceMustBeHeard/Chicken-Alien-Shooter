@@ -50,7 +50,6 @@ export type UseBossOptions = {
 
 export function useBoss(options: UseBossOptions) {
   const {
-    canvasRef,
     playerRef,
     enemiesRef,
     projectilesRef,

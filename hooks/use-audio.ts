@@ -1,6 +1,6 @@
 // hooks/use-audio.ts
 
-import { useEffect, useMemo, useRef, type RefObject } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { createAudioSystem, type OscillatorWaveType } from "@/lib/game/audio"
 
 // creates an audio system for the game, providing functions to play sounds and manage audio context
